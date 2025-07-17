@@ -23,7 +23,7 @@ function Dashboard() {
   return (
     <AdminLayout>
       <div className="flex items-center">
-        <h1 className="text-lg font-semibold md:text-2xl">Dashboard</h1>
+        <h1 className="text-lg font-semibold md:text-2xl">Painel</h1>
       </div>
       <div
         className="flex flex-1 items-center justify-center rounded-lg border border-dashed shadow-sm" x-chunk="dashboard-02-chunk-1"
@@ -35,7 +35,7 @@ function Dashboard() {
           <p className="text-sm text-muted-foreground">
             Você pode começar a gerenciar seus produtos e categorias.
           </p>
-          <Button onClick={handleLogout} className="mt-4">Logout</Button>
+          <Button onClick={handleLogout} className="mt-4">Sair</Button>
         </div>
       </div>
     </AdminLayout>

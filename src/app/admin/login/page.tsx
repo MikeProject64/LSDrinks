@@ -30,8 +30,8 @@ export default function LoginPage() {
     <div className="flex items-center justify-center min-h-screen bg-background">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>Admin Login</CardTitle>
-          <CardDescription>Enter your credentials to access the admin panel.</CardDescription>
+          <CardTitle>Login do Admin</CardTitle>
+          <CardDescription>Insira suas credenciais para acessar o painel administrativo.</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-4">
@@ -47,7 +47,7 @@ export default function LoginPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password">Senha</Label>
               <Input
                 id="password"
                 type="password"
@@ -58,7 +58,7 @@ export default function LoginPage() {
             </div>
             {error && <p className="text-red-500 text-sm">{error}</p>}
             <Button type="submit" className="w-full">
-              Login
+              Entrar
             </Button>
           </form>
         </CardContent>

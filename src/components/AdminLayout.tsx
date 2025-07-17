@@ -22,7 +22,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 href="/admin/dashboard"
                 className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
               >
-                Dashboard
+                Painel
               </Link>
             </nav>
           </div>
@@ -38,7 +38,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 className="shrink-0 md:hidden"
               >
                 <Menu className="h-5 w-5" />
-                <span className="sr-only">Toggle navigation menu</span>
+                <span className="sr-only">Alternar menu de navegação</span>
               </Button>
             </SheetTrigger>
             <SheetContent side="left" className="flex flex-col">
@@ -54,7 +54,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   href="/admin/dashboard"
                   className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
                 >
-                  Dashboard
+                  Painel
                 </Link>
               </nav>
             </SheetContent>
