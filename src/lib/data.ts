@@ -1,0 +1,68 @@
+import type { Product } from '@/types';
+
+export const products: Product[] = [
+  {
+    id: '1',
+    name: 'Cosmic Elixir',
+    description: 'A shimmering, sweet drink that tastes like the galaxy.',
+    price: 12.50,
+    image: 'https://placehold.co/600x600.png',
+    dataAiHint: 'cocktail vibrant',
+  },
+  {
+    id: '2',
+    name: 'Ocean Breeze',
+    description: 'Cool and refreshing, with a hint of sea salt and citrus.',
+    price: 9.00,
+    image: 'https://placehold.co/600x600.png',
+    dataAiHint: 'blue drink',
+  },
+  {
+    id: '3',
+    name: 'Sunset Glow',
+    description: 'A warm, spiced mocktail that mimics a perfect sunset.',
+    price: 11.00,
+    image: 'https://placehold.co/600x600.png',
+    dataAiHint: 'orange cocktail',
+  },
+  {
+    id: '4',
+    name: 'Forest Dew',
+    description: 'An earthy blend of herbs and botanicals. Pure nature.',
+    price: 10.50,
+    image: 'https://placehold.co/600x600.png',
+    dataAiHint: 'green mocktail',
+  },
+    {
+    id: '5',
+    name: 'Ruby Rush',
+    description: 'A vibrant berry fusion, both tart and sweet.',
+    price: 13.00,
+    image: 'https://placehold.co/600x600.png',
+    dataAiHint: 'red drink',
+  },
+  {
+    id: '6',
+    name: 'Golden Nectar',
+    description: 'A honey-infused drink with a smooth, rich finish.',
+    price: 14.00,
+    image: 'https://placehold.co/600x600.png',
+    dataAiHint: 'yellow cocktail',
+  },
+  {
+    id: '7',
+    name: 'Midnight Velvet',
+    description: 'A dark, mysterious drink with notes of coffee and chocolate.',
+    price: 15.50,
+    image: 'https://placehold.co/600x600.png',
+    dataAiHint: 'dark cocktail',
+  },
+  {
+    id: '8',
+    name: 'Arctic Kiss',
+    description: 'A crisp, minty concoction that is icily refreshing.',
+    price: 9.50,
+    image: 'https://placehold.co/600x600.png',
+    dataAiHint: 'clear drink',
+  },
+];
