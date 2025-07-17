@@ -12,6 +12,9 @@ export default function LayoutManager({ children }: { children: React.ReactNode 
   const isAdminPage = pathname.startsWith('/admin');
 
   if (isAdminPage) {
+    // Para as páginas de admin, renderizamos apenas o conteúdo,
+    // pois o layout específico (AdminLayout) já está sendo aplicado
+    // dentro da própria página do dashboard. A página de login não tem layout.
     return <>{children}</>;
   }
 
@@ -28,4 +31,4 @@ export default function LayoutManager({ children }: { children: React.ReactNode 
       <MobileNav />
     </CartProvider>
   );
-} 
+}

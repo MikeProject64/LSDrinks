@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 
 interface AuthContextType {
   user: User | null;
@@ -35,24 +35,35 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 export const useAuth = () => useContext(AuthContext);
 
 export const withAuth = (WrappedComponent: React.ComponentType) => {
-  return (props: any) => {
-    const { user, loading } = useAuth();
-    const router = useRouter();
-
-    useEffect(() => {
-      if (!loading && !user) {
-        router.push('/admin/login');
+    return (props: any) => {
+      const { user, loading } = useAuth();
+      const router = useRouter();
+      const pathname = usePathname();
+  
+      useEffect(() => {
+        // Se não está carregando e não há usuário, e a rota atual não é a de login,
+        // então redireciona para o login.
+        if (!loading && !user && pathname !== '/admin/login') {
+          router.push('/admin/login');
+        }
+      }, [user, loading, router, pathname]);
+  
+      // Se estiver carregando, mostra um spinner ou mensagem.
+      if (loading) {
+        return (
+          <div className="flex items-center justify-center min-h-screen">
+            <div>Loading...</div>
+          </div>
+        );
       }
-    }, [user, loading, router]);
-
-    if (loading) {
-      return <div>Loading...</div>; // Ou um componente de spinner/loading
-    }
-
-    if (!user) {
-      return null; // ou uma mensagem para fazer login
-    }
-
-    return <WrappedComponent {...props} />;
+  
+      // Se não houver usuário e estivermos em uma página protegida,
+      // não renderiza nada, pois o redirecionamento já foi disparado.
+      if (!user && pathname !== '/admin/login') {
+        return null;
+      }
+  
+      // Renderiza o componente se o usuário estiver logado.
+      return <WrappedComponent {...props} />;
+    };
   };
-}; 
