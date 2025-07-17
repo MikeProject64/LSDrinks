@@ -23,6 +23,7 @@ export async function addItem(data: { title: string; description: string; price:
       ...validation.data,
       createdAt: serverTimestamp(),
     });
+    // Correção: Retorna apenas dados simples para evitar erro de serialização.
     return { id: docRef.id, ...validation.data };
   } catch (e) {
     console.error("Error adding document: ", e);
@@ -38,7 +39,7 @@ export async function getItems() {
       const items: any[] = [];
       querySnapshot.forEach((doc) => {
         const data = doc.data();
-        // Converte Timestamps para um formato serializável (string ISO) se existirem
+        // Correção: Converte Timestamps para um formato serializável (string ISO).
         const serializableData = Object.fromEntries(
             Object.entries(data).map(([key, value]) => 
                 value instanceof Timestamp ? [key, value.toDate().toISOString()] : [key, value]

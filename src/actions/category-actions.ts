@@ -3,7 +3,7 @@
 
 import { z } from 'zod';
 import { db } from '@/lib/firebase';
-import { collection, addDoc, getDoc, getDocs, serverTimestamp, query, orderBy, Timestamp, doc } from 'firebase/firestore';
+import { collection, addDoc, getDocs, serverTimestamp, query, orderBy, Timestamp } from 'firebase/firestore';
 
 const categorySchema = z.object({
   name: z.string().min(2, "O nome da categoria deve ter pelo menos 2 caracteres."),
