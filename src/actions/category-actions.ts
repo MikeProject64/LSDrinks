@@ -22,13 +22,10 @@ export async function addCategory(data: { name: string }) {
       createdAt: serverTimestamp(),
     });
     
-    const newDocSnapshot = await getDoc(docRef);
-    const newDocData = newDocSnapshot.data();
-
+    // Retorna um objeto simples e seguro. A página irá recarregar a lista de qualquer maneira.
     return { 
       id: docRef.id, 
-      name: newDocData?.name,
-      createdAt: (newDocData?.createdAt as Timestamp)?.toDate().toISOString() 
+      name: validation.data.name,
     };
 
   } catch (e) {
