@@ -22,6 +22,14 @@ const LoginPage = () => {
   
   const { toast } = useToast();
 
+  useEffect(() => {
+    // Se o usuário já estiver logado e o carregamento inicial terminou,
+    // redireciona para o dashboard.
+    if (!authLoading && authUser) {
+      router.push('/admin/dashboard');
+    }
+  }, [authUser, authLoading, router]);
+
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     const res = await signInWithEmailAndPassword(email, password);
@@ -46,8 +54,9 @@ const LoginPage = () => {
     }
   };
 
-  // Mostra um loader enquanto a autenticação está sendo processada
-  if (authLoading) {
+  // Se o carregamento da autenticação estiver acontecendo, ou se já houver um usuário
+  // (e o redirecionamento estiver prestes a acontecer), mostre um loader.
+  if (authLoading || authUser) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="h-16 w-16 animate-spin text-primary" />
