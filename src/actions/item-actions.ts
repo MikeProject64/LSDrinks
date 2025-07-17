@@ -3,7 +3,7 @@
 
 import { z } from 'zod';
 import { db } from '@/lib/firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, getDocs, serverTimestamp, query, orderBy } from 'firebase/firestore';
 
 const itemSchema = z.object({
   title: z.string().min(3),
@@ -29,3 +29,19 @@ export async function addItem(data: { title: string; description: string; price:
     throw new Error('Falha ao adicionar item no banco de dados.');
   }
 }
+
+
+export async function getItems() {
+    try {
+      const q = query(collection(db, "items"), orderBy("createdAt", "desc"));
+      const querySnapshot = await getDocs(q);
+      const items: any[] = [];
+      querySnapshot.forEach((doc) => {
+        items.push({ id: doc.id, ...doc.data() });
+      });
+      return items;
+    } catch (e) {
+      console.error("Error fetching documents: ", e);
+      throw new Error('Falha ao buscar itens.');
+    }
+  }

@@ -1,126 +1,112 @@
 
 "use client";
 
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { addItem } from "@/actions/item-actions";
+import { useEffect, useState } from "react";
+import { getItems } from "@/actions/item-actions";
 import AdminLayout from "@/components/AdminLayout";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
 import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { PlusCircle } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-const itemSchema = z.object({
-  title: z.string().min(3, "O título deve ter pelo menos 3 caracteres."),
-  description: z.string().min(10, "A descrição deve ter pelo menos 10 caracteres."),
-  price: z.coerce.number().positive("O preço deve ser um número positivo."),
-});
 
-type ItemFormValues = z.infer<typeof itemSchema>;
+interface Item {
+  id: string;
+  title: string;
+  description: string;
+  price: number;
+}
 
-export default function ItemsPage() {
+export default function ItemsListPage() {
   const { toast } = useToast();
   const router = useRouter();
-  const form = useForm<ItemFormValues>({
-    resolver: zodResolver(itemSchema),
-    defaultValues: {
-      title: "",
-      description: "",
-      price: 0,
-    },
-  });
+  const [items, setItems] = useState<Item[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const onSubmit = async (data: ItemFormValues) => {
+  const fetchItems = async () => {
+    setIsLoading(true);
     try {
-      await addItem(data);
-      toast({
-        title: "Sucesso!",
-        description: "O item foi cadastrado com sucesso.",
-      });
-      form.reset();
-      // Opcional: redirecionar ou atualizar a lista de itens
-      // router.push('/admin/items');
+      const fetchedItems = await getItems();
+      setItems(fetchedItems);
     } catch (error) {
       toast({
         variant: "destructive",
         title: "Erro!",
-        description: "Não foi possível cadastrar o item.",
+        description: "Não foi possível carregar os itens.",
       });
+    } finally {
+      setIsLoading(false);
     }
   };
 
+  useEffect(() => {
+    fetchItems();
+  }, []);
+
+
   return (
     <AdminLayout>
-      <div className="flex items-center">
-        <h1 className="text-lg font-semibold md:text-2xl">Cadastrar Item</h1>
-      </div>
+        <div className="flex items-center">
+            <h1 className="text-lg font-semibold md:text-2xl">Itens do Cardápio</h1>
+            <div className="ml-auto flex items-center gap-2">
+                <Button asChild size="sm" className="h-8 gap-1">
+                    <Link href="/admin/items/new">
+                        <PlusCircle className="h-3.5 w-3.5" />
+                        <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
+                            Cadastrar Item
+                        </span>
+                    </Link>
+                </Button>
+            </div>
+        </div>
       <Card>
-        <CardHeader>
-          <CardTitle>Novo Item</CardTitle>
-          <CardDescription>Preencha os dados abaixo para adicionar um novo item ao cardápio.</CardDescription>
-        </CardHeader>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)}>
-            <CardContent className="space-y-4">
-              <FormField
-                control={form.control}
-                name="title"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Título</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Ex: Elixir Cósmico" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="description"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Descrição</FormLabel>
-                    <FormControl>
-                      <Textarea placeholder="Uma bebida brilhante e doce que tem gosto de galáxia." {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="price"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Preço</FormLabel>
-                    <FormControl>
-                      <Input type="number" step="0.01" placeholder="12.50" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </CardContent>
-            <CardFooter>
-              <Button type="submit" disabled={form.formState.isSubmitting}>
-                {form.formState.isSubmitting ? "Salvando..." : "Salvar Item"}
-              </Button>
-            </CardFooter>
-          </form>
-        </Form>
+          <CardHeader>
+              <CardTitle>Itens Cadastrados</CardTitle>
+              <CardDescription>Lista de todos os itens existentes no cardápio.</CardDescription>
+          </CardHeader>
+          <CardContent>
+             {isLoading ? (
+               <p>Carregando itens...</p>
+             ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Título</TableHead>
+                    <TableHead className="hidden md:table-cell">Descrição</TableHead>
+                    <TableHead>Preço</TableHead>
+                    <TableHead className="text-right">Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {items.length > 0 ? (
+                    items.map((item) => (
+                      <TableRow key={item.id}>
+                        <TableCell className="font-medium">{item.title}</TableCell>
+                        <TableCell className="hidden md:table-cell">{item.description}</TableCell>
+                        <TableCell>R$ {item.price.toFixed(2)}</TableCell>
+                        <TableCell className="text-right">
+                           <Button variant="ghost" size="sm">...</Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center">Nenhum item encontrado.</TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+             )}
+          </CardContent>
       </Card>
     </AdminLayout>
   );
