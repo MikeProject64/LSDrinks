@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSignInWithEmailAndPassword } from 'react-firebase-hooks/auth';
 import { auth } from '@/lib/firebase';
@@ -9,42 +9,51 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/context/AuthContext';
+import { Loader2 } from 'lucide-react';
 
 const LoginPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const router = useRouter();
-  const [signInWithEmailAndPassword, user, loading, error] = useSignInWithEmailAndPassword(auth);
+  
+  const [signInWithEmailAndPassword, , loading, error] = useSignInWithEmailAndPassword(auth);
+  const { user: authUser, loading: authLoading } = useAuth();
+  
   const { toast } = useToast();
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    try {
-      const res = await signInWithEmailAndPassword(email, password);
-      if (res) {
-        toast({ title: "Login bem-sucedido!", description: "Redirecionando para o painel de admin..." });
-        router.push('/admin');
-      }
-    } catch (err: any) {
-      // O hook 'react-firebase-hooks' já popula o objeto 'error'.
-      // A documentação sugere verificar o 'code' do erro.
-      const errorCode = error?.code;
-      
-      if (errorCode === 'auth/invalid-credential' || errorCode === 'auth/wrong-password' || errorCode === 'auth/user-not-found') {
+    const res = await signInWithEmailAndPassword(email, password);
+    if (res) {
+      toast({ title: "Login bem-sucedido!" });
+      router.push('/admin/dashboard');
+    } else if (error) {
+      const errorCode = error.code;
+      if (errorCode === 'auth/invalid-credential') {
         toast({
-            variant: "destructive",
-            title: "Credenciais Inválidas",
-            description: "O e-mail ou a senha estão incorretos. Por favor, tente novamente.",
-          });
+          variant: "destructive",
+          title: "Credenciais Inválidas",
+          description: "O e-mail ou a senha estão incorretos.",
+        });
       } else {
         toast({
           variant: "destructive",
           title: "Erro no login",
-          description: error?.message || "Ocorreu um problema inesperado.",
+          description: error.message || "Ocorreu um problema inesperado.",
         });
       }
     }
   };
+
+  // Mostra um loader enquanto a autenticação está sendo processada
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-16 w-16 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex items-center justify-center min-h-screen">

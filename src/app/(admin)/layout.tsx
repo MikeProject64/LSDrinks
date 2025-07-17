@@ -29,8 +29,9 @@ const AdminLayout = ({ children }: { children: React.ReactNode }) => {
     }
   };
   
-  // Enquanto o status do usuário está sendo verificado, mostra uma tela de carregamento
-  if (loading) {
+  // Mostra um loader enquanto o status do usuário está sendo verificado
+  // ou se o usuário for nulo (o que significa que o redirecionamento está prestes a acontecer).
+  if (loading || !user) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="h-16 w-16 animate-spin text-primary" />
@@ -38,11 +39,7 @@ const AdminLayout = ({ children }: { children: React.ReactNode }) => {
     );
   }
 
-  // Se não houver usuário, não renderiza nada (o useEffect já cuidou do redirect)
-  if (!user) {
-    return null;
-  }
-
+  // Neste ponto, o carregamento terminou e o usuário existe, então é seguro renderizar o layout.
   return (
     <div className="flex min-h-screen">
       <aside className="w-64 bg-card border-r p-4 flex-col hidden md:flex">
