@@ -39,7 +39,7 @@ export default function CheckoutForm() {
       <div>
         <Card>
           <CardHeader>
-            <CardTitle className="font-headline">Order Summary</CardTitle>
+            <CardTitle className="font-headline">Resumo do Pedido</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {items.map((item) => (
@@ -55,16 +55,16 @@ export default function CheckoutForm() {
                   />
                   <div>
                     <p className="font-semibold">{item.name}</p>
-                    <p className="text-sm text-muted-foreground">Qty: {item.quantity}</p>
+                    <p className="text-sm text-muted-foreground">Qtd: {item.quantity}</p>
                   </div>
                 </div>
-                <p className="font-semibold">${(item.price * item.quantity).toFixed(2)}</p>
+                <p className="font-semibold">R${(item.price * item.quantity).toFixed(2)}</p>
               </div>
             ))}
           </CardContent>
           <CardFooter className="flex justify-between font-bold text-lg border-t pt-4">
             <p>Total</p>
-            <p>${cartTotal.toFixed(2)}</p>
+            <p>R${cartTotal.toFixed(2)}</p>
           </CardFooter>
         </Card>
       </div>
