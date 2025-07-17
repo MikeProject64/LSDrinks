@@ -3,7 +3,7 @@
 
 import { z } from 'zod';
 import { db } from '@/lib/firebase';
-import { collection, addDoc, getDocs, serverTimestamp, query, orderBy, Timestamp } from 'firebase/firestore';
+import { collection, addDoc, getDoc, getDocs, serverTimestamp, query, orderBy, Timestamp, doc } from 'firebase/firestore';
 
 const categorySchema = z.object({
   name: z.string().min(2, "O nome da categoria deve ter pelo menos 2 caracteres."),
@@ -17,12 +17,24 @@ export async function addCategory(data: { name: string }) {
   }
 
   try {
+    // Adiciona o documento com o serverTimestamp para que o banco de dados atribua a data/hora
     const docRef = await addDoc(collection(db, "categories"), {
       ...validation.data,
       createdAt: serverTimestamp(),
     });
-    // Retorna um objeto simples e serializável, sem o serverTimestamp
-    return { id: docRef.id, name: validation.data.name };
+    
+    // Busca o documento recém-criado para obter o timestamp real gerado pelo servidor
+    const newDocSnapshot = await getDoc(docRef);
+    const newDocData = newDocSnapshot.data();
+
+    // Agora, montamos um objeto de retorno completamente serializável
+    return { 
+      id: docRef.id, 
+      name: newDocData?.name,
+      // Convertemos o Timestamp para uma string ISO, que é segura para serialização
+      createdAt: (newDocData?.createdAt as Timestamp)?.toDate().toISOString() 
+    };
+
   } catch (e) {
     console.error("Error adding document: ", e);
     throw new Error('Falha ao adicionar categoria no banco de dados.');
