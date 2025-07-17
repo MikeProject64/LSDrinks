@@ -17,21 +17,17 @@ export async function addCategory(data: { name: string }) {
   }
 
   try {
-    // Adiciona o documento com o serverTimestamp para que o banco de dados atribua a data/hora
     const docRef = await addDoc(collection(db, "categories"), {
       ...validation.data,
       createdAt: serverTimestamp(),
     });
     
-    // Busca o documento recém-criado para obter o timestamp real gerado pelo servidor
     const newDocSnapshot = await getDoc(docRef);
     const newDocData = newDocSnapshot.data();
 
-    // Agora, montamos um objeto de retorno completamente serializável
     return { 
       id: docRef.id, 
       name: newDocData?.name,
-      // Convertemos o Timestamp para uma string ISO, que é segura para serialização
       createdAt: (newDocData?.createdAt as Timestamp)?.toDate().toISOString() 
     };
 
@@ -48,7 +44,6 @@ export async function getCategories() {
     const categories: any[] = [];
     querySnapshot.forEach((doc) => {
       const data = doc.data();
-      // Converte Timestamps para um formato serializável (string ISO) se existirem
       const serializableData = Object.fromEntries(
           Object.entries(data).map(([key, value]) => 
               value instanceof Timestamp ? [key, value.toDate().toISOString()] : [key, value]
