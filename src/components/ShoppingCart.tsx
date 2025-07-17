@@ -36,11 +36,11 @@ const ShoppingCart = () => {
       </SheetTrigger>
       <SheetContent className="flex flex-col w-full sm:max-w-md">
         <SheetHeader>
-          <SheetTitle className="font-headline text-2xl">Your Cart</SheetTitle>
+          <SheetTitle className="font-headline text-2xl">Seu Carrinho</SheetTitle>
         </SheetHeader>
         {items.length === 0 ? (
           <div className="flex-grow flex items-center justify-center">
-            <p className="text-muted-foreground">Your cart is empty.</p>
+            <p className="text-muted-foreground">Seu carrinho está vazio.</p>
           </div>
         ) : (
           <div className="flex-grow overflow-y-auto -mx-6 px-6 divide-y divide-border">

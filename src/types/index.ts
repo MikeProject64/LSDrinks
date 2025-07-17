@@ -4,6 +4,7 @@ export type Product = {
   description: string;
   price: number;
   image: string;
+  tags?: string[]; // Opcional: selos como 'Novo', 'Mais Vendido'
   dataAiHint: string;
 };
 

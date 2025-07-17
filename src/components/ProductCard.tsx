@@ -2,43 +2,37 @@
 
 import Image from 'next/image';
 import type { Product } from '@/types';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { useCart } from '@/context/CartContext';
-import { ShoppingCart } from 'lucide-react';
 
 interface ProductCardProps {
   product: Product;
+  onProductClick: (product: Product) => void;
 }
 
-const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
-  const { addToCart } = useCart();
-  const { name, image, description, price, dataAiHint } = product;
+const ProductCard: React.FC<ProductCardProps> = ({ product, onProductClick }) => {
+  const { name, image, description, price } = product;
 
   return (
-    <Card className="flex flex-col overflow-hidden transition-all duration-300 hover:shadow-lg hover:shadow-primary/20 hover:-translate-y-1">
-      <CardHeader className="p-0">
-        <div className="aspect-square relative">
-          <Image
-            src={image}
-            alt={name}
-            fill
-            className="object-cover"
-            data-ai-hint={dataAiHint}
-          />
-        </div>
-      </CardHeader>
-      <CardContent className="p-4 flex-grow">
-        <CardTitle className="font-headline text-xl mb-2">{name}</CardTitle>
-        <CardDescription>{description}</CardDescription>
-      </CardContent>
-      <CardFooter className="p-4 flex justify-between items-center">
-        <p className="text-2xl font-bold text-primary">${price.toFixed(2)}</p>
-        <Button onClick={() => addToCart(product)} variant="outline" className="border-accent text-accent hover:bg-accent hover:text-accent-foreground">
-          <ShoppingCart className="mr-2 h-4 w-4" /> Add
-        </Button>
-      </CardFooter>
-    </Card>
+    <button 
+      onClick={() => onProductClick(product)}
+      className="w-full text-left flex items-center gap-4 p-3 rounded-lg bg-card border border-transparent hover:border-primary/50 transition-colors group"
+    >
+      {/* Informações do Produto */}
+      <div className="flex-1 flex flex-col gap-1">
+        <h3 className="font-semibold text-base text-foreground line-clamp-1">{name}</h3>
+        <p className="text-sm text-muted-foreground line-clamp-2">{description}</p>
+        <span className="text-base font-bold text-primary">R${price.toFixed(2)}</span>
+      </div>
+      
+      {/* Imagem do Produto */}
+      <div className="relative w-24 h-24 md:w-28 md:h-28 rounded-md overflow-hidden bg-muted shrink-0">
+        <Image
+          src={image}
+          alt={name}
+          fill
+          className="object-cover"
+        />
+      </div>
+    </button>
   );
 };
 

@@ -19,8 +19,8 @@ export default function CheckoutForm() {
     
     // Simulate payment processing
     toast({
-      title: "Payment Successful!",
-      description: "Your order has been placed. Thank you for your purchase.",
+      title: "Pagamento realizado com sucesso!",
+      description: "Seu pedido foi realizado. Obrigado pela sua compra.",
     });
 
     clearCart();
@@ -31,7 +31,7 @@ export default function CheckoutForm() {
   };
 
   if (items.length === 0) {
-    return <div className="text-center text-muted-foreground">Your cart is empty. Redirecting to home...</div>;
+    return <div className="text-center text-muted-foreground">Seu carrinho está vazio. Redirecionando para a página inicial...</div>;
   }
 
   return (
@@ -72,35 +72,35 @@ export default function CheckoutForm() {
         <form onSubmit={handleSubmit} className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle className="font-headline">Shipping & Payment</CardTitle>
+              <CardTitle className="font-headline">Entrega & Pagamento</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Full Name</Label>
-                <Input id="name" placeholder="John Doe" required />
+                <Label htmlFor="name">Nome Completo</Label>
+                <Input id="name" placeholder="João da Silva" required />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="address">Address</Label>
-                <Input id="address" placeholder="123 Drink St" required />
+                <Label htmlFor="address">Endereço</Label>
+                <Input id="address" placeholder="Rua das Bebidas, 123" required />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="city">City</Label>
-                  <Input id="city" placeholder="New York" required />
+                  <Label htmlFor="city">Cidade</Label>
+                  <Input id="city" placeholder="São Paulo" required />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="zip">ZIP Code</Label>
-                  <Input id="zip" placeholder="10001" required />
+                  <Label htmlFor="zip">CEP</Label>
+                  <Input id="zip" placeholder="01000-000" required />
                 </div>
               </div>
                <div className="space-y-2 pt-4">
-                <Label htmlFor="card">Card Information (Simulated)</Label>
+                <Label htmlFor="card">Informações do Cartão (Simulado)</Label>
                 <Input id="card" placeholder="**** **** **** 1234" required />
               </div>
             </CardContent>
           </Card>
           <Button type="submit" size="lg" className="w-full bg-accent text-accent-foreground hover:bg-accent/90">
-            Pay ${cartTotal.toFixed(2)}
+            Pagar R${cartTotal.toFixed(2)}
           </Button>
         </form>
       </div>
