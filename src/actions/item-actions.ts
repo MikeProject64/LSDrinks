@@ -3,12 +3,12 @@
 
 import { z } from 'zod';
 import { db } from '@/lib/firebase';
-import { collection, addDoc, getDocs, serverTimestamp, query, orderBy } from 'firebase/firestore';
+import { collection, addDoc, getDocs, serverTimestamp, query, orderBy, Timestamp } from 'firebase/firestore';
 
 const itemSchema = z.object({
-  title: z.string().min(3),
-  description: z.string().min(10),
-  price: z.number().positive(),
+  title: z.string().min(3, "O título deve ter pelo menos 3 caracteres."),
+  description: z.string().min(10, "A descrição deve ter pelo menos 10 caracteres."),
+  price: z.number().positive("O preço deve ser um número positivo."),
 });
 
 export async function addItem(data: { title: string; description: string; price: number }) {
@@ -23,7 +23,7 @@ export async function addItem(data: { title: string; description: string; price:
       ...validation.data,
       createdAt: serverTimestamp(),
     });
-    return { id: docRef.id };
+    return { id: docRef.id, ...validation.data };
   } catch (e) {
     console.error("Error adding document: ", e);
     throw new Error('Falha ao adicionar item no banco de dados.');
@@ -37,7 +37,14 @@ export async function getItems() {
       const querySnapshot = await getDocs(q);
       const items: any[] = [];
       querySnapshot.forEach((doc) => {
-        items.push({ id: doc.id, ...doc.data() });
+        const data = doc.data();
+        // Converte Timestamps para um formato serializável (string ISO) se existirem
+        const serializableData = Object.fromEntries(
+            Object.entries(data).map(([key, value]) => 
+                value instanceof Timestamp ? [key, value.toDate().toISOString()] : [key, value]
+            )
+        );
+        items.push({ id: doc.id, ...serializableData });
       });
       return items;
     } catch (e) {
