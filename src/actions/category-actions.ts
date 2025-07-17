@@ -22,7 +22,9 @@ export async function addCategory(data: { name: string }) {
       createdAt: serverTimestamp(),
     });
     
-    // Retorna um objeto simples e seguro. A página irá recarregar a lista de qualquer maneira.
+    // Correção Definitiva: Retorna um objeto simples e seguro. 
+    // A página de categorias recarregará a lista de qualquer maneira,
+    // e essa abordagem evita erros de serialização com o serverTimestamp().
     return { 
       id: docRef.id, 
       name: validation.data.name,
@@ -41,6 +43,8 @@ export async function getCategories() {
     const categories: any[] = [];
     querySnapshot.forEach((doc) => {
       const data = doc.data();
+      // Correção Definitiva: Garante que qualquer campo Timestamp seja convertido 
+      // para uma string ISO, que é um formato seguro para serialização.
       const serializableData = Object.fromEntries(
           Object.entries(data).map(([key, value]) => 
               value instanceof Timestamp ? [key, value.toDate().toISOString()] : [key, value]
