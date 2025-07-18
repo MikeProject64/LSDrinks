@@ -184,6 +184,7 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [stripeOrderId, setStripeOrderId] = useState<string | null>(null);
   const [stripeTotal, setStripeTotal] = useState<number>(0);
+  const [stripeAppearance, setStripeAppearance] = useState<Appearance | undefined>(undefined);
 
   // State for on-delivery payment
   const [onDeliveryMethod, setOnDeliveryMethod] = useState<OnDeliverySubMethod>('pix');
@@ -196,28 +197,6 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
     resolver: zodResolver(deliveryFormSchema),
     defaultValues: { customerName: '', customerPhone: '', customerAddress: '' }
   });
-
-  const appearance: Appearance = {
-    theme: 'night',
-    variables: {
-        fontFamily: 'Inter, sans-serif',
-        colorPrimary: 'hsl(var(--primary))',
-        colorBackground: 'hsl(var(--card))',
-        colorText: 'hsl(var(--foreground))',
-        colorDanger: 'hsl(var(--destructive))',
-        spacingUnit: '4px',
-        borderRadius: 'var(--radius)',
-      },
-      rules: {
-        '.Input': {
-          backgroundColor: 'hsl(var(--input))',
-          border: '1px solid hsl(var(--border))'
-        },
-        '.Label': {
-            color: 'hsl(var(--primary))',
-        }
-      }
-  };
 
   useEffect(() => {
     async function loadInitialData() {
@@ -244,6 +223,42 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
     loadInitialData();
   }, [deliveryForm]);
   
+  // Effect to compute and set Stripe Appearance object from CSS variables
+  useEffect(() => {
+    // We can only compute styles on the client, and after the component has mounted.
+    if (typeof window !== 'undefined') {
+        const computedStyle = getComputedStyle(document.documentElement);
+        
+        const extractHsl = (value: string) => {
+            const match = value.match(/(\d+\.?\d*)/g);
+            return match ? `hsl(${match[0]}, ${match[1]}%, ${match[2]}%)` : value;
+        }
+
+        const appearance: Appearance = {
+            theme: 'night',
+            variables: {
+                fontFamily: '"Inter", sans-serif',
+                colorPrimary: extractHsl(computedStyle.getPropertyValue('--primary')),
+                colorBackground: extractHsl(computedStyle.getPropertyValue('--card')),
+                colorText: extractHsl(computedStyle.getPropertyValue('--foreground')),
+                colorDanger: extractHsl(computedStyle.getPropertyValue('--destructive')),
+                spacingUnit: '4px',
+                borderRadius: computedStyle.getPropertyValue('--radius'),
+            },
+            rules: {
+                '.Input': {
+                    backgroundColor: extractHsl(computedStyle.getPropertyValue('--input')),
+                    border: `1px solid ${extractHsl(computedStyle.getPropertyValue('--border'))}`
+                },
+                '.Label': {
+                    color: extractHsl(computedStyle.getPropertyValue('--primary')),
+                }
+            }
+        };
+        setStripeAppearance(appearance);
+    }
+  }, []);
+
   // Effect for PIX Payload
   useEffect(() => {
     async function generatePayload() {
@@ -423,8 +438,8 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
                     <div className="space-y-8">
                         <CartSummary />
                         <div className="border-t border-dashed pt-6">
-                            {clientSecret && stripePromise && stripeOrderId ? (
-                                <Elements stripe={stripePromise} options={{ clientSecret, appearance }}>
+                            {clientSecret && stripePromise && stripeOrderId && stripeAppearance ? (
+                                <Elements stripe={stripePromise} options={{ clientSecret, appearance: stripeAppearance }}>
                                     <StripeForm
                                         deliveryInfo={deliveryInfo}
                                         onSuccess={handleStripeSuccess}
@@ -505,14 +520,11 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
                             </button>
                         )}
                         {paymentSettings?.isPaymentOnDeliveryEnabled && (
-                            <button className="w-full p-4 border rounded-lg text-left hover:bg-muted/50 transition-colors" onClick={() => setSelectedPayment('on_delivery')}>
+                             <button className="w-full p-4 border rounded-lg text-left hover:bg-muted/50 transition-colors" onClick={() => setSelectedPayment('on_delivery')}>
                                 <div className="flex items-center gap-4">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-10 h-10 text-primary shrink-0">
-                                    <rect x="2" y="6" width="20" height="12" rx="2" />
-                                    <path d="M12 12h.01" />
-                                    <path d="M17 12h.01" />
-                                    <path d="M7 12h.01" />
-                                </svg>
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-10 h-10 text-primary shrink-0">
+                                        <path d="M4 14.857c.714 2.286 2.286 3.429 4.286 4.286S12.857 20 14.857 20s4-1.143 4.286-2.857c.286-1.714-.857-3.143-2.286-4s-3.429-1.429-3.429-3.429c0-1.714 1.143-2.857 2.571-3.429S20 4.857 20 4M6 10.286C5.429 8 6.571 6 8.571 5.143S12.857 4 14.857 4M10 20V4" />
+                                    </svg>
                                     <div>
                                         <span className="font-semibold text-lg">Pagar na Entrega</span>
                                         <p className="text-sm text-muted-foreground">Pague com PIX ou dinheiro ao receber.</p>
