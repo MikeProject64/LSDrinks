@@ -29,7 +29,7 @@ export default function PaymentOnDeliveryModal({ isOpen, onClose, onSubmit, tota
   useEffect(() => {
     if (isOpen && activeTab === 'pix' && canvasRef.current && pixKey) {
         // Simple PIX Copy/Paste payload (not a full BRCode)
-        const payload = `PIX Key: ${pixKey}`;
+        const payload = pixKey;
         QRCode.toCanvas(canvasRef.current, payload, { width: 220, margin: 2 }, (error) => {
             if (error) console.error("Failed to generate QR Code", error);
         });
