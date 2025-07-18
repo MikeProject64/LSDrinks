@@ -6,7 +6,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Elements } from '@stripe/react-stripe-js';
-import { type Stripe, loadStripe } from '@stripe/stripe-js';
+import { type Stripe, loadStripe, type Appearance } from '@stripe/stripe-js';
 import { useRouter } from 'next/navigation';
 
 import CheckoutForm from './CheckoutForm';
@@ -70,6 +70,25 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
         customerAddress: ''
     }
   });
+
+  const appearance: Appearance = {
+    theme: 'night',
+    variables: {
+      colorPrimary: '#f97316', // Laranja da logo (accent)
+      colorBackground: '#090e18', // Cor do card
+      colorText: '#f7f9fa',
+      colorDanger: '#e53e3e',
+      fontFamily: 'Inter, sans-serif',
+      spacingUnit: '4px',
+      borderRadius: '0.5rem',
+    },
+    rules: {
+      '.Input': {
+        backgroundColor: '#1e293b', // Cor do input
+        border: '1px solid #1e293b',
+      }
+    }
+  };
 
   useEffect(() => {
     async function loadPaymentSettings() {
@@ -250,7 +269,7 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
                               </div>
                           )}
                           {selectedPayment === 'stripe' && deliveryInfo && clientSecret && stripePromise && stripeOrderId && (
-                               <Elements stripe={stripePromise} options={{ clientSecret }}>
+                               <Elements stripe={stripePromise} options={{ clientSecret, appearance }}>
                                   <CheckoutForm
                                     deliveryInfo={deliveryInfo}
                                     onSuccess={handleStripeSuccess}
