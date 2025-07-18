@@ -14,6 +14,7 @@ const highlightSchema = z.object({
 });
 
 async function getNextPosition() {
+    if (!db) return 0;
     const q = query(collection(db, "highlights"), orderBy("position", "desc"));
     const querySnapshot = await getDocs(q);
     if (querySnapshot.empty) {
@@ -24,6 +25,7 @@ async function getNextPosition() {
 }
 
 export async function addHighlight(data: Omit<z.infer<typeof highlightSchema>, 'position'>) {
+  if (!db) throw new Error("Firebase não inicializado.");
   const validation = highlightSchema.omit({position: true}).safeParse(data);
 
   if (!validation.success) {
@@ -45,6 +47,10 @@ export async function addHighlight(data: Omit<z.infer<typeof highlightSchema>, '
 }
 
 export async function getHighlights() {
+    if (!db) {
+        console.warn("Firebase não inicializado, retornando destaques vazios.");
+        return [];
+    }
     try {
       const q = query(collection(db, "highlights"), orderBy("position", "asc"));
       const querySnapshot = await getDocs(q);
@@ -72,6 +78,10 @@ export async function getHighlights() {
 } 
 
 export async function getActiveHighlights() {
+    if (!db) {
+        console.warn("Firebase não inicializado, retornando destaques ativos vazios.");
+        return [];
+    }
     try {
       const q = query(
         collection(db, "highlights"), 
@@ -102,6 +112,7 @@ export async function getActiveHighlights() {
 }
 
 export async function getHighlightById(id: string) {
+    if (!db) throw new Error("Firebase não inicializado.");
     if (!id) throw new Error('ID do destaque é obrigatório.');
     try {
         const docRef = doc(db, 'highlights', id);
@@ -123,6 +134,7 @@ export async function getHighlightById(id: string) {
 }
 
 export async function updateHighlight(id: string, data: Partial<z.infer<typeof highlightSchema>>) {
+    if (!db) throw new Error("Firebase não inicializado.");
     if (!id) throw new Error('ID do destaque é obrigatório.');
     
     const validation = highlightSchema.partial().safeParse(data);
@@ -142,6 +154,7 @@ export async function updateHighlight(id: string, data: Partial<z.infer<typeof h
 }
 
 export async function deleteHighlight(id: string) {
+    if (!db) throw new Error("Firebase não inicializado.");
     if (!id) throw new Error('ID do destaque é obrigatório.');
     try {
         const highlightRef = doc(db, 'highlights', id);
@@ -154,6 +167,7 @@ export async function deleteHighlight(id: string) {
 } 
 
 export async function swapHighlightPositions(highlightId1: string, highlightId2: string) {
+  if (!db) throw new Error("Firebase não inicializado.");
   try {
     await runTransaction(db, async (transaction) => {
       const highlight1Ref = doc(db, 'highlights', highlightId1);

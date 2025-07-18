@@ -24,6 +24,7 @@ const paymentSettingsSchema = z.object({
 export type PaymentSettings = z.infer<typeof paymentSettingsSchema>;
 
 export async function savePaymentSettings(data: PaymentSettings) {
+  if (!db) throw new Error("Firebase não inicializado.");
   const validation = paymentSettingsSchema.safeParse(data);
 
   if (!validation.success) {
@@ -42,6 +43,10 @@ export async function savePaymentSettings(data: PaymentSettings) {
 }
 
 export async function getPaymentSettings(): Promise<PaymentSettings | null> {
+  if (!db) {
+    console.warn("Firebase não inicializado, retornando configurações de pagamento nulas.");
+    return null;
+  }
   try {
     const settingsRef = doc(db, settingsCollection, settingsId);
     const docSnap = await getDoc(settingsRef);
@@ -76,6 +81,7 @@ const checkoutSchema = z.object({
 });
 
 export async function saveOrder(data: z.infer<typeof checkoutSchema>) {
+  if (!db) throw new Error("Firebase não inicializado.");
   const validation = checkoutSchema.safeParse(data);
   if (!validation.success) {
     console.error('Validation Error:', validation.error);
@@ -116,6 +122,10 @@ export async function saveOrder(data: z.infer<typeof checkoutSchema>) {
 }
 
 export async function getAllOrders() {
+  if (!db) {
+    console.warn("Firebase não inicializado, retornando pedidos vazios.");
+    return [];
+  }
   try {
     const q = query(collection(db, "orders"), orderBy("createdAt", "desc"));
     const querySnapshot = await getDocs(q);
@@ -142,6 +152,10 @@ export async function getAllOrders() {
 }
 
 export async function getOrdersByIds(ids: string[]) {
+    if (!db) {
+      console.warn("Firebase não inicializado, retornando pedidos vazios.");
+      return [];
+    }
     if (!ids || ids.length === 0) {
       return [];
     }
@@ -190,6 +204,7 @@ export async function updateOrderStatus(data: {
   paymentStatus?: 'Pendente' | 'Pago' | 'Pgto. na entrega';
   orderStatus?: 'Aguardando' | 'Confirmado' | 'Enviado' | 'Entregue';
 }) {
+  if (!db) throw new Error("Firebase não inicializado.");
   const validation = updateStatusSchema.safeParse(data);
   if (!validation.success) {
     console.error(validation.error);
@@ -221,6 +236,7 @@ export async function updateOrderStatus(data: {
 }
 
 export async function deleteOrder(orderId: string) {
+    if (!db) throw new Error("Firebase não inicializado.");
     if (!orderId) {
       throw new Error('ID do pedido é obrigatório.');
     }
@@ -241,6 +257,7 @@ export async function bulkUpdateOrders(
       orderStatus?: 'Aguardando' | 'Confirmado' | 'Enviado' | 'Entregue';
     }
   ) {
+    if (!db) throw new Error("Firebase não inicializado.");
     if (!orderIds || orderIds.length === 0) {
       throw new Error('Nenhum ID de pedido fornecido.');
     }
@@ -264,6 +281,7 @@ export async function bulkUpdateOrders(
 }
 
 export async function bulkDeleteOrders(orderIds: string[]) {
+    if (!db) throw new Error("Firebase não inicializado.");
     if (!orderIds || orderIds.length === 0) {
       throw new Error('Nenhum ID de pedido fornecido.');
     }

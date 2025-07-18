@@ -1,8 +1,8 @@
 // Import the functions you need from the SDKs you need
-import { initializeApp, getApps, getApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
-import { getStorage } from "firebase/storage";
+import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
+import { getAuth, Auth } from "firebase/auth";
+import { getFirestore, Firestore } from "firebase/firestore";
+import { getStorage, FirebaseStorage } from "firebase/storage";
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
@@ -15,9 +15,30 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-const auth = getAuth(app);
-const db = getFirestore(app);
-const storage = getStorage(app);
+let app: FirebaseApp | null = null;
+let auth: Auth | null = null;
+let db: Firestore | null = null;
+let storage: FirebaseStorage | null = null;
+
+// This check ensures we only try to initialize Firebase if the API key is provided.
+// This is crucial for the build process, which may not have env vars.
+if (firebaseConfig.apiKey) {
+  try {
+    app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+    auth = getAuth(app);
+    db = getFirestore(app);
+    storage = getStorage(app);
+  } catch (e) {
+    console.error("Firebase initialization failed:", e);
+    // Keep app, auth, db, storage as null if initialization fails
+    app = null;
+    auth = null;
+    db = null;
+    storage = null;
+  }
+} else {
+  console.warn("Firebase API key is missing. Firebase services will be disabled.");
+}
+
 
 export { app, auth, db, storage };

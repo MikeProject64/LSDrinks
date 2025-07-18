@@ -10,6 +10,7 @@ const categorySchema = z.object({
 });
 
 export async function addCategory(data: { name: string }) {
+  if (!db) throw new Error("Firebase não inicializado.");
   const validation = categorySchema.safeParse(data);
 
   if (!validation.success) {
@@ -37,6 +38,10 @@ export async function addCategory(data: { name: string }) {
 }
 
 export async function getCategories() {
+    if (!db) {
+        console.warn("Firebase não inicializado, retornando categorias vazias.");
+        return [];
+    }
     try {
       const q = query(collection(db, "categories"), orderBy("createdAt", "desc"));
       const querySnapshot = await getDocs(q);
@@ -60,6 +65,7 @@ export async function getCategories() {
   }
 
 export async function deleteCategory(id: string) {
+    if (!db) throw new Error("Firebase não inicializado.");
     if (!id) {
         throw new Error('ID da categoria é obrigatório.');
     }
@@ -74,6 +80,7 @@ export async function deleteCategory(id: string) {
 }
 
 export async function getCategoryById(id: string) {
+    if (!db) throw new Error("Firebase não inicializado.");
     if (!id) {
         throw new Error('ID da categoria é obrigatório.');
     }
@@ -99,6 +106,7 @@ export async function getCategoryById(id: string) {
 }
 
 export async function updateCategory(id: string, data: { name: string }) {
+    if (!db) throw new Error("Firebase não inicializado.");
     if (!id) {
         throw new Error('ID da categoria é obrigatório.');
     }

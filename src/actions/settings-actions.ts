@@ -14,7 +14,11 @@ const storeSettingsSchema = z.object({
 
 export type StoreSettings = z.infer<typeof storeSettingsSchema>;
 
+const getDefaultSettings = () => storeSettingsSchema.parse({});
+
 export async function saveSettings(data: StoreSettings) {
+  if (!db) throw new Error("Firebase não inicializado.");
+  
   const validation = storeSettingsSchema.safeParse(data);
 
   if (!validation.success) {
@@ -33,6 +37,10 @@ export async function saveSettings(data: StoreSettings) {
 }
 
 export async function getSettings(): Promise<StoreSettings> {
+  if (!db) {
+    console.warn("Firebase não inicializado, retornando configurações padrão.");
+    return getDefaultSettings();
+  }
   try {
     const settingsRef = doc(db, settingsCollection, settingsId);
     const docSnap = await getDoc(settingsRef);
@@ -44,15 +52,12 @@ export async function getSettings(): Promise<StoreSettings> {
         return validation.data;
       } else {
          console.warn("Dados de configuração no Firestore estão malformados:", validation.error.flatten());
-         // Retorna o padrão em caso de erro de validação
-         return storeSettingsSchema.parse({});
+         return getDefaultSettings();
       }
     }
-    // Retorna o padrão se o documento não existir
-    return storeSettingsSchema.parse({});
+    return getDefaultSettings();
   } catch (e) {
     console.error("Error fetching store settings: ", e);
-    // Retorna o padrão em caso de erro de fetch
-    return storeSettingsSchema.parse({});
+    return getDefaultSettings();
   }
 }

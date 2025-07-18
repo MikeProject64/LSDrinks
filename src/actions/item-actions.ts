@@ -15,6 +15,7 @@ const itemSchema = z.object({
 });
 
 export async function addItem(data: z.infer<typeof itemSchema>) {
+  if (!db) throw new Error("Firebase não inicializado.");
   const validation = itemSchema.safeParse(data);
 
   if (!validation.success) {
@@ -36,6 +37,10 @@ export async function addItem(data: z.infer<typeof itemSchema>) {
 
 
 export async function getItems() {
+  if (!db) {
+    console.warn("Firebase não inicializado, retornando itens vazios.");
+    return [];
+  }
   try {
     const categoriesSnapshot = await getDocs(collection(db, "categories"));
     const categories = new Map(categoriesSnapshot.docs.map(doc => [doc.id, doc.data().name]));
@@ -69,6 +74,10 @@ export async function getItems() {
 }
 
 export async function getItemsPaginated({ pageLimit = 12, lastVisibleId }: { pageLimit?: number, lastVisibleId?: string | null }) {
+  if (!db) {
+    console.warn("Firebase não inicializado, retornando resultado paginado vazio.");
+    return { items: [], lastVisibleId: null, hasMore: false };
+  }
   try {
     const categoriesSnapshot = await getDocs(collection(db, "categories"));
     const categories = new Map(categoriesSnapshot.docs.map(doc => [doc.id, doc.data().name]));
@@ -110,6 +119,7 @@ export async function getItemsPaginated({ pageLimit = 12, lastVisibleId }: { pag
 }
 
 export async function getItemById(id: string) {
+    if (!db) throw new Error("Firebase não inicializado.");
     if (!id) throw new Error('ID do item é obrigatório.');
     try {
         const itemRef = doc(db, 'items', id);
@@ -130,6 +140,7 @@ export async function getItemById(id: string) {
 }
 
 export async function updateItem(id: string, data: z.infer<typeof itemSchema>) {
+    if (!db) throw new Error("Firebase não inicializado.");
     if (!id) throw new Error('ID do item é obrigatório.');
     const validation = itemSchema.safeParse(data);
     if (!validation.success) throw new Error('Dados do item inválidos.');
@@ -145,6 +156,7 @@ export async function updateItem(id: string, data: z.infer<typeof itemSchema>) {
 }
 
 export async function deleteItem(id: string) {
+    if (!db) throw new Error("Firebase não inicializado.");
     if (!id) throw new Error('ID do item é obrigatório.');
     try {
         const itemRef = doc(db, 'items', id);
