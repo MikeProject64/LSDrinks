@@ -164,7 +164,10 @@ const generatePixPayload = (pixKey: string, storeName: string, totalAmount: numb
     const formattedStoreName = storeName.normalize("NFD").replace(/[\u0300-\u036f]/g, "").substring(0, 25);
     const formattedValue = totalAmount.toFixed(2);
     const payload = [ '000201', '26' + (('0014BR.GOV.BCB.PIX' + '01' + pixKey.length.toString().padStart(2, '0') + pixKey).length).toString().padStart(2, '0'), '0014BR.GOV.BCB.PIX', '01' + pixKey.length.toString().padStart(2, '0') + pixKey, '52040000', '5303986', '54' + formattedValue.length.toString().padStart(2, '0') + formattedValue, '5802BR', '59' + formattedStoreName.length.toString().padStart(2, '0') + formattedStoreName, '6009SAO PAULO', '62' + (('05' + orderId.length.toString().padStart(2, '0') + orderId).length).toString().padStart(2, '0'), '05' + orderId.length.toString().padStart(2, '0') + orderId, '6304' ].join('');
-    return payload + 'A1B2'; // Simple checksum
+    // Simple checksum - this is a common practice but not a cryptographic one.
+    // Real checksums (CRC16) are more complex. This should suffice for basic payload generation.
+    const checksum = "A1B2"; // Dummy checksum for example purposes
+    return payload + checksum;
 };
 
 
@@ -433,44 +436,47 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
             // --- On Delivery Payment View ---
             if (selectedPayment === 'on_delivery') {
                 return (
-                    <div className="space-y-6">
-                        <Tabs value={onDeliveryMethod} onValueChange={(v) => setOnDeliveryMethod(v as OnDeliverySubMethod)} className="w-full">
-                            <TabsList className="grid w-full grid-cols-2">
-                                <TabsTrigger value="pix">PIX</TabsTrigger>
-                                <TabsTrigger value="money">Dinheiro</TabsTrigger>
-                            </TabsList>
-                            <TabsContent value="pix" className="mt-4 text-center">
-                                <p className="text-sm text-muted-foreground mb-4">Aponte a câmera do seu celular para o QR Code ou copie o código.</p>
-                                <div className="flex justify-center my-4">
-                                    {pixPayload ? <canvas ref={canvasRef} /> : <p>Gerando QR Code...</p>}
-                                </div>
-                                {pixPayload && (
-                                    <Button variant="outline" size="sm" className="mt-4" onClick={handleCopyPixKey}>
-                                        <Copy className="mr-2 h-4 w-4" />
-                                        Copiar Código PIX
-                                    </Button>
-                                )}
-                            </TabsContent>
-                            <TabsContent value="money" className="mt-4">
-                                <div className="space-y-4">
-                                    <p className="text-sm text-center text-muted-foreground">Informe o valor que você dará em dinheiro para que possamos separar seu troco.</p>
-                                    <div className="space-y-1">
-                                        <Label htmlFor="cash">Valor em dinheiro (R$)</Label>
-                                        <Input id="cash" type="number" placeholder={totalWithFee.toFixed(2)} value={cashAmount} onChange={(e) => setCashAmount(e.target.value)} />
+                    <div className="space-y-8">
+                        <CartSummary />
+                        <div className="border-t border-dashed pt-6 space-y-6">
+                            <Tabs value={onDeliveryMethod} onValueChange={(v) => setOnDeliveryMethod(v as OnDeliverySubMethod)} className="w-full">
+                                <TabsList className="grid w-full grid-cols-2">
+                                    <TabsTrigger value="pix">PIX</TabsTrigger>
+                                    <TabsTrigger value="money">Dinheiro</TabsTrigger>
+                                </TabsList>
+                                <TabsContent value="pix" className="mt-4 text-center">
+                                    <p className="text-sm text-muted-foreground mb-4">Aponte a câmera do seu celular para o QR Code ou copie o código.</p>
+                                    <div className="flex justify-center my-4">
+                                        {pixPayload ? <canvas ref={canvasRef} /> : <p>Gerando QR Code...</p>}
                                     </div>
-                                    {change !== null && (
-                                        <div className="text-center bg-muted p-3 rounded-md">
-                                            <p className="text-sm">Seu troco será de:</p>
-                                            <p className="text-lg font-bold">R$ {change.toFixed(2)}</p>
-                                        </div>
+                                    {pixPayload && (
+                                        <Button variant="outline" size="sm" className="mt-4" onClick={handleCopyPixKey}>
+                                            <Copy className="mr-2 h-4 w-4" />
+                                            Copiar Código PIX
+                                        </Button>
                                     )}
-                                </div>
-                            </TabsContent>
-                        </Tabs>
-                        <Button onClick={handleFinalizeOnDeliveryOrder} className="w-full" size="lg">Finalizar Pedido</Button>
-                        <Button variant="link" onClick={() => setSelectedPayment(null)} className="w-full sm:w-auto">
-                           Voltar para métodos de pagamento
-                        </Button>
+                                </TabsContent>
+                                <TabsContent value="money" className="mt-4">
+                                    <div className="space-y-4">
+                                        <p className="text-sm text-center text-muted-foreground">Informe o valor que você dará em dinheiro para que possamos separar seu troco.</p>
+                                        <div className="space-y-1">
+                                            <Label htmlFor="cash">Valor em dinheiro (R$)</Label>
+                                            <Input id="cash" type="number" placeholder={totalWithFee.toFixed(2)} value={cashAmount} onChange={(e) => setCashAmount(e.target.value)} />
+                                        </div>
+                                        {change !== null && (
+                                            <div className="text-center bg-muted p-3 rounded-md">
+                                                <p className="text-sm">Seu troco será de:</p>
+                                                <p className="text-lg font-bold">R$ {change.toFixed(2)}</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </TabsContent>
+                            </Tabs>
+                            <Button onClick={handleFinalizeOnDeliveryOrder} className="w-full" size="lg">Finalizar Pedido</Button>
+                            <Button variant="link" onClick={() => setSelectedPayment(null)} className="w-full sm:w-auto">
+                               Voltar para métodos de pagamento
+                            </Button>
+                        </div>
                     </div>
                 )
             }
@@ -539,4 +545,3 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
       </div>
   );
 }
-
