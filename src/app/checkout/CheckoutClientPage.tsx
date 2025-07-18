@@ -128,7 +128,7 @@ const StripeCheckoutForm = ({ onFinalizing, onSuccess, deliveryInfo, totalAmount
             
             <div className="space-y-4">
                 <Button type="submit" disabled={!stripe || isLoading || items.length === 0} className="w-full" size="lg">
-                    {isLoading ? 'Processando...' : `Pagar R$ ${totalWithFee.toFixed(2)}`}
+                    {isLoading ? 'Processando...' : `Pagar R$ ${totalAmount.toFixed(2)}`}
                 </Button>
                 <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
                     <ShieldCheck className="w-4 h-4 text-green-500" />
@@ -366,7 +366,9 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
                         {paymentSettings?.isPaymentOnDeliveryEnabled && (
                             <button className="w-full p-4 border rounded-lg text-left hover:bg-muted/50 transition-colors" onClick={() => setIsModalOpen(true)}>
                                 <div className="flex items-center gap-4">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-10 h-10 text-primary shrink-0"><circle cx="12" cy="12" r="10"/><path d="M12 6v12"/><path d="M16 10H8"/><path d="M16 14H8"/></svg>
+                                    <svg viewBox="0 0 40 40" width="40" height="40" xmlns="http://www.w3.org/2000/svg" className="w-10 h-10 text-primary shrink-0" fill="currentColor">
+                                      <text x="5" y="28" fontFamily="Arial, sans-serif" fontSize="20" fontWeight="bold">R$</text>
+                                    </svg>
                                     <div>
                                         <span className="font-semibold text-lg">Pagar na Entrega</span>
                                         <p className="text-sm text-muted-foreground">Pague com PIX ou dinheiro ao receber.</p>
