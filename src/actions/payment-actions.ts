@@ -101,7 +101,7 @@ export async function saveOrder(data: z.infer<typeof checkoutSchema>) {
     },
     createdAt: serverTimestamp(),
     paymentMethod: paymentDetails,
-    paymentStatus: paymentMethod === 'stripe' ? 'Pago' : 'Pendente',
+    paymentStatus: paymentMethod === 'stripe' ? 'Pago' : 'Pgto. na entrega', // Atualizado aqui
     orderStatus: 'Aguardando', // Novo status do pedido
     ...(stripePaymentIntentId && { stripePaymentIntentId }),
   };
@@ -181,13 +181,13 @@ export async function getOrdersByIds(ids: string[]) {
 
 const updateStatusSchema = z.object({
   orderId: z.string(),
-  paymentStatus: z.enum(['Pendente', 'Pago']).optional(),
+  paymentStatus: z.enum(['Pendente', 'Pago', 'Pgto. na entrega']).optional(),
   orderStatus: z.enum(['Aguardando', 'Confirmado', 'Enviado', 'Entregue']).optional(),
 });
 
 export async function updateOrderStatus(data: {
   orderId: string;
-  paymentStatus?: 'Pendente' | 'Pago';
+  paymentStatus?: 'Pendente' | 'Pago' | 'Pgto. na entrega';
   orderStatus?: 'Aguardando' | 'Confirmado' | 'Enviado' | 'Entregue';
 }) {
   const validation = updateStatusSchema.safeParse(data);
@@ -237,7 +237,7 @@ export async function deleteOrder(orderId: string) {
 export async function bulkUpdateOrders(
     orderIds: string[],
     updates: {
-      paymentStatus?: 'Pendente' | 'Pago';
+      paymentStatus?: 'Pendente' | 'Pago' | 'Pgto. na entrega';
       orderStatus?: 'Aguardando' | 'Confirmado' | 'Enviado' | 'Entregue';
     }
   ) {

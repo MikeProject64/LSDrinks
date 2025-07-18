@@ -22,7 +22,7 @@ interface Order {
     id: string;
     items: CartItem[];
     totalAmount: number;
-    paymentStatus: 'Pendente' | 'Pago';
+    paymentStatus: 'Pendente' | 'Pago' | 'Pgto. na entrega';
     orderStatus: 'Aguardando' | 'Confirmado' | 'Enviado' | 'Entregue';
     createdAt: string;
     paymentMethod: string;
@@ -80,6 +80,7 @@ export default function OrdersPage() {
     switch (status) {
         case 'Pago': return 'bg-green-600/80 text-white';
         case 'Pendente': return 'bg-amber-500/80 text-white';
+        case 'Pgto. na entrega': return 'bg-amber-500/80 text-white';
         default: return 'secondary';
     }
   };

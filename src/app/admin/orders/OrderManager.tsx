@@ -17,10 +17,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
 
 type Order = Awaited<ReturnType<typeof getAllOrders>>[0];
-type PaymentStatus = 'Pendente' | 'Pago';
+type PaymentStatus = 'Pendente' | 'Pago' | 'Pgto. na entrega';
 type OrderStatus = 'Aguardando' | 'Confirmado' | 'Enviado' | 'Entregue';
 
-const paymentStatusOptions: PaymentStatus[] = ['Pendente', 'Pago'];
+const paymentStatusOptions: PaymentStatus[] = ['Pago', 'Pendente', 'Pgto. na entrega'];
 const orderStatusOptions: OrderStatus[] = ['Aguardando', 'Confirmado', 'Enviado', 'Entregue'];
 
 const FormattedDate = ({ dateString }: { dateString: string }) => {
@@ -150,6 +150,7 @@ export default function OrderManager({ initialOrders }: { initialOrders: Order[]
     switch (status) {
         case 'Pago': return 'bg-green-600/80 text-white';
         case 'Pendente': return 'bg-amber-500/80 text-white';
+        case 'Pgto. na entrega': return 'bg-amber-500/80 text-white';
         default: return 'secondary';
     }
   };
@@ -236,7 +237,7 @@ export default function OrderManager({ initialOrders }: { initialOrders: Order[]
                     <span>Pagamento</span>
                     <span>Status</span>
                 </div>
-                <div className="w-[244px]"></div>
+                <div className="w-8 md:w-[244px]"></div>
             </div>
             {orders.map((order) => (
               <AccordionItem value={order.id} key={order.id} className="border-b-0">
@@ -266,7 +267,7 @@ export default function OrderManager({ initialOrders }: { initialOrders: Order[]
                             onValueChange={(value) => handleStatusChange(order.id, 'paymentStatus', value as PaymentStatus)}
                             disabled={isPending || order.paymentStatus === 'Pago'}
                             >
-                            <SelectTrigger className="h-8 w-auto min-w-[110px] gap-1 text-xs"><SelectValue /></SelectTrigger>
+                            <SelectTrigger className="h-8 w-auto min-w-[130px] gap-1 text-xs"><SelectValue /></SelectTrigger>
                             <SelectContent>
                                 {paymentStatusOptions.map(status => <SelectItem key={status} value={status}>{status}</SelectItem>)}
                             </SelectContent>
