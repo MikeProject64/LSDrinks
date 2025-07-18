@@ -3,7 +3,7 @@ import './globals.css';
 import { AuthProvider } from '@/context/AuthContext';
 import LayoutManager from '@/components/LayoutManager';
 import { Inter } from 'next/font/google';
-import { getSettings } from '@/actions/settings-actions';
+import { getSettings, StoreSettings } from '@/actions/settings-actions';
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -15,11 +15,13 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const settings: StoreSettings = await getSettings();
+
   return (
     <html lang="en" className='dark'>
       <head>
@@ -29,7 +31,7 @@ export default function RootLayout({
       </head>
       <body className={inter.className}>
         <AuthProvider>
-          <LayoutManager>
+          <LayoutManager settings={settings}>
             {children}
           </LayoutManager>
         </AuthProvider>
