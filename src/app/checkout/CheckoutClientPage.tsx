@@ -1,29 +1,34 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js';
 import { type Stripe, loadStripe, type Appearance } from '@stripe/stripe-js';
 import { useRouter } from 'next/navigation';
+import QRCode from 'qrcode';
 
 import CartSummary from './CartSummary';
 import { useCart } from '@/context/CartContext';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { getPaymentSettings, PaymentSettings, saveOrder } from '@/actions/payment-actions';
 import { createPaymentIntent } from '@/actions/create-payment-intent';
 import { toast } from '@/hooks/use-toast';
-import { ShieldCheck } from 'lucide-react';
-import PaymentOnDeliveryModal from './PaymentOnDeliveryModal';
+import { ShieldCheck, Copy } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { getSettings } from '@/actions/settings-actions';
 
 interface CheckoutClientPageProps {}
 
 type Step = 'summary' | 'delivery' | 'payment' | 'finalizing';
+type PaymentMethod = 'stripe' | 'on_delivery' | null;
+type OnDeliverySubMethod = 'pix' | 'money';
 
 const deliveryFormSchema = z.object({
     customerName: z.string().min(3, "Nome completo é obrigatório."),
@@ -62,7 +67,6 @@ const getDeliveryInfoFromLocal = (): DeliveryFormValues | null => {
     }
 };
 
-
 const StripeForm = ({ onSuccess, deliveryInfo, totalAmount, orderId }: { 
     onSuccess: (orderId: string) => void;
     deliveryInfo: DeliveryFormValues;
@@ -86,7 +90,6 @@ const StripeForm = ({ onSuccess, deliveryInfo, totalAmount, orderId }: {
         setIsLoading(true);
         setErrorMessage(null);
         
-        // 1. Trigger form validation and gather data
         const { error: submitError } = await elements.submit();
         if (submitError) {
             setErrorMessage(submitError.message || "Ocorreu um erro ao submeter o formulário.");
@@ -94,7 +97,6 @@ const StripeForm = ({ onSuccess, deliveryInfo, totalAmount, orderId }: {
             return;
         }
 
-        // 2. Confirm the payment
         const { error: confirmError, paymentIntent } = await stripe.confirmPayment({
             elements,
             redirect: 'if_required'
@@ -107,7 +109,6 @@ const StripeForm = ({ onSuccess, deliveryInfo, totalAmount, orderId }: {
             return;
         }
 
-        // 3. Handle successful payment
         if (paymentIntent?.status === 'succeeded') {
             try {
                 const result = await saveOrder({
@@ -158,13 +159,21 @@ const StripeForm = ({ onSuccess, deliveryInfo, totalAmount, orderId }: {
     );
 };
 
+// Simplified PIX Payload Generator
+const generatePixPayload = (pixKey: string, storeName: string, totalAmount: number, orderId: string) => {
+    const formattedStoreName = storeName.normalize("NFD").replace(/[\u0300-\u036f]/g, "").substring(0, 25);
+    const formattedValue = totalAmount.toFixed(2);
+    const payload = [ '000201', '26' + (('0014BR.GOV.BCB.PIX' + '01' + pixKey.length.toString().padStart(2, '0') + pixKey).length).toString().padStart(2, '0'), '0014BR.GOV.BCB.PIX', '01' + pixKey.length.toString().padStart(2, '0') + pixKey, '52040000', '5303986', '54' + formattedValue.length.toString().padStart(2, '0') + formattedValue, '5802BR', '59' + formattedStoreName.length.toString().padStart(2, '0') + formattedStoreName, '6009SAO PAULO', '62' + (('05' + orderId.length.toString().padStart(2, '0') + orderId).length).toString().padStart(2, '0'), '05' + orderId.length.toString().padStart(2, '0') + orderId, '6304' ].join('');
+    return payload + 'A1B2'; // Simple checksum
+};
+
 
 export default function CheckoutClientPage({}: CheckoutClientPageProps) {
   const { items, totalWithFee, clearCart } = useCart();
   const router = useRouter();
   const [step, setStep] = useState<Step>('summary');
   const [deliveryInfo, setDeliveryInfo] = useState<DeliveryFormValues | null>(null);
-  const [selectedPayment, setSelectedPayment] = useState<'on_delivery' | 'stripe' | null>(null);
+  const [selectedPayment, setSelectedPayment] = useState<PaymentMethod>(null);
   const [paymentSettings, setPaymentSettings] = useState<PaymentSettings | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   
@@ -173,7 +182,12 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
   const [stripeOrderId, setStripeOrderId] = useState<string | null>(null);
   const [stripeTotal, setStripeTotal] = useState<number>(0);
 
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  // State for on-delivery payment
+  const [onDeliveryMethod, setOnDeliveryMethod] = useState<OnDeliverySubMethod>('pix');
+  const [cashAmount, setCashAmount] = useState('');
+  const [change, setChange] = useState<number | null>(null);
+  const [pixPayload, setPixPayload] = useState('');
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const deliveryForm = useForm<DeliveryFormValues>({
     resolver: zodResolver(deliveryFormSchema),
@@ -183,20 +197,15 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
   const appearance: Appearance = {
     theme: 'night',
     variables: {
-      colorPrimary: 'hsl(25 95% 53%)', // Laranja do tema
-      colorBackground: '#090e18', // Cor do card
+      colorPrimary: 'hsl(25 95% 53%)',
+      colorBackground: '#090e18',
       colorText: '#f7f9fa',
       colorDanger: '#e53e3e',
       fontFamily: 'Inter, sans-serif',
       spacingUnit: '4px',
       borderRadius: '0.5rem',
     },
-    rules: {
-      '.Input': { 
-        backgroundColor: '#1e293b', // Muted background
-        border: '1px solid hsl(var(--border))' 
-      }
-    }
+    rules: { '.Input': { backgroundColor: '#1e293b', border: '1px solid hsl(var(--border))' } }
   };
 
   useEffect(() => {
@@ -223,6 +232,37 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
     }
     loadInitialData();
   }, [deliveryForm]);
+  
+  // Effect for PIX QR Code
+  useEffect(() => {
+    async function generatePayload() {
+        if (selectedPayment === 'on_delivery' && paymentSettings?.pixKey && totalWithFee > 0) {
+            const storeSettings = await getSettings();
+            const orderId = `pedido_${Date.now()}`;
+            const payload = generatePixPayload(paymentSettings.pixKey, storeSettings.storeName, totalWithFee, orderId);
+            setPixPayload(payload);
+        }
+    }
+    generatePayload();
+  }, [selectedPayment, paymentSettings?.pixKey, totalWithFee]);
+
+  useEffect(() => {
+    if (pixPayload && canvasRef.current) {
+        QRCode.toCanvas(canvasRef.current, pixPayload, { width: 220, margin: 2, errorCorrectionLevel: 'H' }, (error) => {
+            if (error) console.error("Failed to generate QR Code", error);
+        });
+    }
+  }, [pixPayload]);
+
+  useEffect(() => {
+    const numericCashAmount = parseFloat(cashAmount);
+    if (!isNaN(numericCashAmount) && numericCashAmount >= totalWithFee) {
+      setChange(numericCashAmount - totalWithFee);
+    } else {
+      setChange(null);
+    }
+  }, [cashAmount, totalWithFee]);
+
 
   const onDeliverySubmit = (data: DeliveryFormValues) => {
     setDeliveryInfo(data);
@@ -230,10 +270,18 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
     setStep('payment');
   }
 
-  const handlePaymentOnDelivery = async (details: { method: 'PIX' | 'Dinheiro', changeFor?: number }) => {
+  const handleFinalizeOnDeliveryOrder = async () => {
     if (!deliveryInfo) return;
+
+    if (onDeliveryMethod === 'money') {
+        const numericCashAmount = parseFloat(cashAmount);
+        if (isNaN(numericCashAmount) || numericCashAmount < totalWithFee) {
+          toast({ variant: 'destructive', title: 'Valor inválido', description: `O valor em dinheiro deve ser igual ou maior que R$ ${totalWithFee.toFixed(2)}.` });
+          return;
+        }
+    }
+    
     setStep('finalizing');
-    setIsModalOpen(false);
 
     try {
       function generateOrderId() {
@@ -243,8 +291,8 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
       }
       const orderId = generateOrderId();
       
-      const paymentDetails = details.method === 'Dinheiro'
-        ? `Dinheiro (Troco para R$ ${details.changeFor?.toFixed(2)})`
+      const paymentDetails = onDeliveryMethod === 'money'
+        ? `Dinheiro (Troco para R$ ${parseFloat(cashAmount).toFixed(2)})`
         : 'PIX';
 
       const result = await saveOrder({
@@ -268,14 +316,18 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
     } catch (err) {
       const error = err as Error;
       toast({ title: 'Erro no Pedido', description: error.message, variant: 'destructive' });
-      setStep('payment');
+      setStep('payment'); // Go back to payment step on error
     }
+  };
+
+  const handleCopyPixKey = () => {
+    if(!pixPayload) return;
+    navigator.clipboard.writeText(pixPayload);
+    toast({ title: "PIX Copia e Cola copiado!", description: "Você pode colar no seu aplicativo de banco." });
   };
   
   const handleStripeSuccess = (orderId: string) => {
-    if(deliveryInfo) {
-        saveDeliveryInfoLocally(deliveryInfo);
-    }
+    if(deliveryInfo) saveDeliveryInfoLocally(deliveryInfo);
     saveOrderIdLocally(orderId);
     toast({ title: 'Sucesso!', description: 'Seu pedido foi realizado com sucesso.' });
     clearCart();
@@ -283,8 +335,7 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
   };
 
   useEffect(() => {
-    // Pré-carrega a intenção de pagamento quando o usuário chega na etapa de pagamento
-    if (step === 'payment' && items.length > 0 && !clientSecret && paymentSettings?.isLive) {
+    if (step === 'payment' && selectedPayment === 'stripe' && items.length > 0 && !clientSecret && paymentSettings?.isLive) {
       createPaymentIntent({ items })
         .then(intent => {
           setClientSecret(intent.clientSecret);
@@ -295,7 +346,7 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
           toast({ title: "Erro de Pagamento", description: `Não foi possível iniciar o pagamento: ${error.message}`, variant: "destructive" });
         });
     }
-  }, [step, items, clientSecret, paymentSettings]);
+  }, [step, items, clientSecret, paymentSettings, selectedPayment]);
 
   if (items.length === 0 && step !== 'finalizing') {
     return (
@@ -355,6 +406,7 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
             const noPaymentMethods = !paymentSettings?.isLive && !paymentSettings?.isPaymentOnDeliveryEnabled;
             if(isLoading || !deliveryInfo) return <p>Carregando...</p>;
 
+            // --- Stripe Payment View ---
             if (selectedPayment === 'stripe') {
                 return (
                     <div className="space-y-8">
@@ -378,22 +430,68 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
                 )
             }
             
+            // --- On Delivery Payment View ---
+            if (selectedPayment === 'on_delivery') {
+                return (
+                    <div className="space-y-6">
+                        <Tabs value={onDeliveryMethod} onValueChange={(v) => setOnDeliveryMethod(v as OnDeliverySubMethod)} className="w-full">
+                            <TabsList className="grid w-full grid-cols-2">
+                                <TabsTrigger value="pix">PIX</TabsTrigger>
+                                <TabsTrigger value="money">Dinheiro</TabsTrigger>
+                            </TabsList>
+                            <TabsContent value="pix" className="mt-4 text-center">
+                                <p className="text-sm text-muted-foreground mb-4">Aponte a câmera do seu celular para o QR Code ou copie o código.</p>
+                                <div className="flex justify-center my-4">
+                                    {pixPayload ? <canvas ref={canvasRef} /> : <p>Gerando QR Code...</p>}
+                                </div>
+                                {pixPayload && (
+                                    <Button variant="outline" size="sm" className="mt-4" onClick={handleCopyPixKey}>
+                                        <Copy className="mr-2 h-4 w-4" />
+                                        Copiar Código PIX
+                                    </Button>
+                                )}
+                            </TabsContent>
+                            <TabsContent value="money" className="mt-4">
+                                <div className="space-y-4">
+                                    <p className="text-sm text-center text-muted-foreground">Informe o valor que você dará em dinheiro para que possamos separar seu troco.</p>
+                                    <div className="space-y-1">
+                                        <Label htmlFor="cash">Valor em dinheiro (R$)</Label>
+                                        <Input id="cash" type="number" placeholder={totalWithFee.toFixed(2)} value={cashAmount} onChange={(e) => setCashAmount(e.target.value)} />
+                                    </div>
+                                    {change !== null && (
+                                        <div className="text-center bg-muted p-3 rounded-md">
+                                            <p className="text-sm">Seu troco será de:</p>
+                                            <p className="text-lg font-bold">R$ {change.toFixed(2)}</p>
+                                        </div>
+                                    )}
+                                </div>
+                            </TabsContent>
+                        </Tabs>
+                        <Button onClick={handleFinalizeOnDeliveryOrder} className="w-full" size="lg">Finalizar Pedido</Button>
+                        <Button variant="link" onClick={() => setSelectedPayment(null)} className="w-full sm:w-auto">
+                           Voltar para métodos de pagamento
+                        </Button>
+                    </div>
+                )
+            }
+
+            // --- Initial Payment Method Selection ---
             return (
               <div className="space-y-8">
                     <div className="space-y-4">
                         {paymentSettings?.isLive && (
-                           <button className="w-full p-4 border rounded-lg text-left hover:bg-muted/50 transition-colors" onClick={() => setSelectedPayment('stripe')} disabled={!clientSecret}>
+                           <button className="w-full p-4 border rounded-lg text-left hover:bg-muted/50 transition-colors" onClick={() => setSelectedPayment('stripe')} disabled={!paymentSettings.stripe?.publicKey}>
                                 <div className="flex items-center gap-4">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-10 h-10 text-primary shrink-0"><rect width="20" height="14" x="2" y="5" rx="2" /><line x1="2" x2="22" y1="10" y2="10" /></svg>
                                     <div>
                                         <span className="font-semibold text-lg">Cartão de Crédito</span>
-                                        <p className="text-sm text-muted-foreground">{!clientSecret ? 'Inicializando...' : 'Pagamento seguro via Stripe.'}</p>
+                                        <p className="text-sm text-muted-foreground">{!paymentSettings.stripe?.publicKey ? 'Não configurado' : 'Pagamento seguro via Stripe.'}</p>
                                     </div>
                                 </div>
                             </button>
                         )}
                         {paymentSettings?.isPaymentOnDeliveryEnabled && (
-                            <button className="w-full p-4 border rounded-lg text-left hover:bg-muted/50 transition-colors" onClick={() => setIsModalOpen(true)}>
+                            <button className="w-full p-4 border rounded-lg text-left hover:bg-muted/50 transition-colors" onClick={() => setSelectedPayment('on_delivery')}>
                                 <div className="flex items-center gap-4">
                                     <svg viewBox="0 0 40 40" width="40" height="40" xmlns="http://www.w3.org/2000/svg" className="w-10 h-10 text-primary shrink-0" fill="currentColor">
                                       <text x="5" y="28" fontFamily="Arial, sans-serif" fontSize="20" fontWeight="bold">R$</text>
@@ -424,11 +522,10 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
     }
   }
 
-  const shouldShowHeader = step !== 'finalizing' && selectedPayment !== 'stripe';
+  const shouldShowHeader = step !== 'finalizing' && !selectedPayment;
   const currentStepContent = stepContent[step];
 
   return (
-    <>
       <div className="container mx-auto px-4 pt-8 pb-24 max-w-2xl space-y-8">
         {shouldShowHeader && (
           <div className="text-center">
@@ -440,15 +537,6 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
           {renderContent()}
         </div>
       </div>
-      {paymentSettings?.isPaymentOnDeliveryEnabled && (
-          <PaymentOnDeliveryModal
-              isOpen={isModalOpen}
-              onClose={() => setIsModalOpen(false)}
-              onSubmit={handlePaymentOnDelivery}
-              totalAmount={totalWithFee}
-              pixKey={paymentSettings.pixKey || ''}
-          />
-      )}
-    </>
   );
 }
+
