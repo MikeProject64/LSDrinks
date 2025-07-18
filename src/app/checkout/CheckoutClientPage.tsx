@@ -115,7 +115,7 @@ const StripeForm = ({ onSuccess, deliveryInfo, totalAmount, orderId }: {
                     items,
                     totalAmount,
                     paymentMethod: 'stripe',
-                    paymentDetails: 'Pago com Cartão',
+                    paymentDetails: 'Pago com Cartão de Crédito',
                     orderId,
                     stripePaymentIntentId: paymentIntent.id,
                     ...deliveryInfo
@@ -200,11 +200,11 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
   const appearance: Appearance = {
     theme: 'night',
     variables: {
+        fontFamily: 'Inter, sans-serif',
         colorPrimary: 'hsl(var(--primary))',
         colorBackground: 'hsl(var(--card))',
         colorText: 'hsl(var(--foreground))',
         colorDanger: 'hsl(var(--destructive))',
-        fontFamily: 'Inter, sans-serif',
         spacingUnit: '4px',
         borderRadius: 'var(--radius)',
       },
@@ -499,7 +499,7 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
                                 <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-10 h-10 text-primary shrink-0"><rect width="20" height="14" x="2" y="5" rx="2" /><line x1="2" x2="22" y1="10" y2="10" /></svg>
                                     <div>
                                         <span className="font-semibold text-lg">Cartão de Crédito</span>
-                                        <p className="text-sm text-muted-foreground">{!paymentSettings.stripe?.publicKey ? 'Não configurado' : 'Pagamento seguro via Stripe.'}</p>
+                                        <p className="text-sm text-muted-foreground">{!paymentSettings.stripe?.publicKey ? 'Não configurado' : 'Pagamento seguro online.'}</p>
                                     </div>
                                 </div>
                             </button>
@@ -507,9 +507,12 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
                         {paymentSettings?.isPaymentOnDeliveryEnabled && (
                             <button className="w-full p-4 border rounded-lg text-left hover:bg-muted/50 transition-colors" onClick={() => setSelectedPayment('on_delivery')}>
                                 <div className="flex items-center gap-4">
-                                    <svg viewBox="0 0 24 24" width="40" height="40" xmlns="http://www.w3.org/2000/svg" className="w-10 h-10 text-primary shrink-0" fill="currentColor">
-                                      <path d="M3.393 8.357A2.25 2.25 0 0 1 5.25 7.5h13.5a2.25 2.25 0 0 1 1.857.857l1.586 2.4A.75.75 0 0 1 21.75 11h-1.5a.75.75 0 0 1 0-1.5H20.25a.75.75 0 0 1-.621-.286L18.443 7.5H5.557L4.371 9.214a.75.75 0 0 1-.621.286H2.25a.75.75 0 0 1 0-1.5H3.75a.75.75 0 0 1 .643-.443l-1-1.5zM4.03 12.15a2.25 2.25 0 0 0-1.78 2.1l.15 2.25A2.25 2.25 0 0 0 4.65 18.75h14.7a2.25 2.25 0 0 0 2.25-2.25l.15-2.25a2.25 2.25 0 0 0-1.78-2.1H4.03zm9.22 3.6a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0zm-3.75.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5zm.75-3a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0zm3.75.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5z"/>
-                                    </svg>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-10 h-10 text-primary shrink-0">
+                                    <rect x="2" y="6" width="20" height="12" rx="2" />
+                                    <path d="M12 12h.01" />
+                                    <path d="M17 12h.01" />
+                                    <path d="M7 12h.01" />
+                                </svg>
                                     <div>
                                         <span className="font-semibold text-lg">Pagar na Entrega</span>
                                         <p className="text-sm text-muted-foreground">Pague com PIX ou dinheiro ao receber.</p>
