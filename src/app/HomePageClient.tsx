@@ -25,7 +25,7 @@ export default function HomePageClient({ highlights, categories, items }: HomePa
   const [selectedProduct, setSelectedProduct] = useState<Item | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const autoplayPlugin = useRef(Autoplay({ delay: 5000, stopOnInteraction: false, stopOnMouseEnter: true }));
+  const autoplayPlugin = useRef(Autoplay({ delay: 5000, stopOnInteraction: true, stopOnMouseEnter: true }));
 
   const handleProductClick = (product: Item) => { // Usando Item
     setSelectedProduct(product);
@@ -48,8 +48,8 @@ export default function HomePageClient({ highlights, categories, items }: HomePa
         <div className="mb-8 relative overflow-hidden rounded-xl">
           <Carousel
             plugins={[autoplayPlugin.current]}
-            onMouseEnter={() => autoplayPlugin.current.stop()}
-            onMouseLeave={() => autoplayPlugin.current.play()}
+            onMouseEnter={autoplayPlugin.current.stop}
+            onMouseLeave={autoplayPlugin.current.reset}
           >
             <CarouselContent>
               {highlights.map((highlight, index) => (
