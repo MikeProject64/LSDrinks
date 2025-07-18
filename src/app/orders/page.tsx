@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -8,17 +9,19 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import Image from 'next/image';
 import { CartItem } from '@/types';
-import { User, Phone, MapPin } from "lucide-react";
+import { User, Phone, MapPin, Package, CreditCard } from "lucide-react";
 
 interface Order {
     id: string;
     items: CartItem[];
     totalAmount: number;
-    status: string;
+    paymentStatus: 'Pendente' | 'Pago';
+    orderStatus: 'Aguardando' | 'Confirmado' | 'Enviado' | 'Entregue';
     createdAt: string;
     paymentMethod: string;
     customer: {
@@ -53,6 +56,10 @@ export default function OrdersPage() {
 
     fetchOrders();
   }, []);
+  
+  const getPaymentStatusVariant = (status: string) => {
+    return status === 'Pago' ? 'default' : 'secondary';
+  };
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
@@ -76,8 +83,10 @@ export default function OrdersPage() {
                   <AccordionTrigger className="p-4 hover:no-underline">
                     <div className="flex justify-between items-center w-full text-sm sm:text-base">
                       <span className="font-mono font-bold">#{order.id}</span>
-                      <span className="hidden sm:inline">{new Date(order.createdAt).toLocaleDateString()}</span>
-                      <span className="text-muted-foreground">{order.status}</span>
+                      <div className='flex items-center gap-2'>
+                        <Badge variant={getPaymentStatusVariant(order.paymentStatus)}>{order.paymentStatus}</Badge>
+                        <Badge variant="outline">{order.orderStatus}</Badge>
+                      </div>
                       <span className="font-bold whitespace-nowrap">R$ {order.totalAmount.toFixed(2)}</span>
                     </div>
                   </AccordionTrigger>
@@ -112,16 +121,20 @@ export default function OrdersPage() {
                                 ))}
                                 </div>
                             </div>
-                            <div className="bg-muted/50 p-4 rounded-lg">
-                                <h4 className="font-semibold mb-3">Detalhes da Entrega</h4>
-                                <div className="space-y-2 text-sm">
-                                    <p className="flex items-center gap-2"><User className="w-4 h-4 text-muted-foreground"/> {order.customer.name}</p>
-                                    <p className="flex items-center gap-2"><Phone className="w-4 h-4 text-muted-foreground"/> {order.customer.phone}</p>
-                                    <p className="flex items-start gap-2"><MapPin className="w-4 h-4 text-muted-foreground mt-1"/> {order.customer.address}</p>
+                            <div className="bg-muted/50 p-4 rounded-lg space-y-4">
+                                <div>
+                                    <h4 className="font-semibold mb-2">Detalhes da Entrega</h4>
+                                    <div className="space-y-2 text-sm">
+                                        <p className="flex items-center gap-2"><User className="w-4 h-4 text-muted-foreground"/> {order.customer.name}</p>
+                                        <p className="flex items-center gap-2"><Phone className="w-4 h-4 text-muted-foreground"/> {order.customer.phone}</p>
+                                        <p className="flex items-start gap-2"><MapPin className="w-4 h-4 text-muted-foreground mt-1"/> {order.customer.address}</p>
+                                    </div>
                                 </div>
-                                <div className="border-t my-4"></div>
-                                <h4 className="font-semibold mb-2">Pagamento</h4>
-                                <p className="text-sm">{order.paymentMethod}</p>
+                                <div className="border-t"></div>
+                                <div>
+                                    <h4 className="font-semibold mb-2">Pagamento</h4>
+                                    <p className="text-sm flex items-center gap-2"><CreditCard className="w-4 h-4 text-muted-foreground"/>{order.paymentMethod}</p>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -135,3 +148,4 @@ export default function OrdersPage() {
     </div>
   );
 }
+

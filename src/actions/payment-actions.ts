@@ -3,7 +3,7 @@
 
 import { z } from 'zod';
 import { db } from '@/lib/firebase';
-import { doc, setDoc, getDoc, collection, addDoc, serverTimestamp, query, getDocs, orderBy, Timestamp, where, documentId, writeBatch } from 'firebase/firestore';
+import { doc, setDoc, getDoc, collection, addDoc, serverTimestamp, query, getDocs, orderBy, Timestamp, where, documentId, writeBatch, updateDoc } from 'firebase/firestore';
 import Stripe from 'stripe';
 import { CartItem } from '@/types';
 
@@ -91,7 +91,7 @@ export async function saveOrder(data: z.infer<typeof checkoutSchema>) {
   }
 
   const orderData = {
-    id: orderId, // Usa o ID do pedido fornecido
+    id: orderId,
     items,
     totalAmount,
     customer: {
@@ -100,13 +100,13 @@ export async function saveOrder(data: z.infer<typeof checkoutSchema>) {
         address: customerAddress
     },
     createdAt: serverTimestamp(),
-    status: paymentMethod === 'stripe' ? 'Pago' : 'Pendente',
     paymentMethod: paymentDetails,
+    paymentStatus: paymentMethod === 'stripe' ? 'Pago' : 'Pendente',
+    orderStatus: 'Aguardando', // Novo status do pedido
     ...(stripePaymentIntentId && { stripePaymentIntentId }),
   };
 
   try {
-    // Usa setDoc com o orderId como identificador do documento
     await setDoc(doc(db, 'orders', orderId), orderData);
     return { success: true, orderId };
   } catch (e) {
@@ -126,7 +126,8 @@ export async function getAllOrders() {
         id: doc.id,
         items: data.items as CartItem[],
         totalAmount: data.totalAmount,
-        status: data.status,
+        paymentStatus: data.paymentStatus || 'Pendente',
+        orderStatus: data.orderStatus || 'Aguardando',
         paymentMethod: data.paymentMethod,
         customer: data.customer,
         createdAt: (data.createdAt as Timestamp).toDate().toISOString(),
@@ -158,7 +159,8 @@ export async function getOrdersByIds(ids: string[]) {
             id: doc.id,
             items: data.items as CartItem[],
             totalAmount: data.totalAmount,
-            status: data.status,
+            paymentStatus: data.paymentStatus || 'Pendente',
+            orderStatus: data.orderStatus || 'Aguardando',
             paymentMethod: data.paymentMethod,
             customer: data.customer,
             createdAt: (data.createdAt as Timestamp).toDate().toISOString(),
@@ -174,3 +176,44 @@ export async function getOrdersByIds(ids: string[]) {
       throw new Error('Falha ao buscar os pedidos.');
     }
   }
+
+const updateStatusSchema = z.object({
+  orderId: z.string(),
+  paymentStatus: z.enum(['Pendente', 'Pago']).optional(),
+  orderStatus: z.enum(['Aguardando', 'Confirmado', 'Enviado', 'Entregue']).optional(),
+});
+
+export async function updateOrderStatus(data: {
+  orderId: string;
+  paymentStatus?: 'Pendente' | 'Pago';
+  orderStatus?: 'Aguardando' | 'Confirmado' | 'Enviado' | 'Entregue';
+}) {
+  const validation = updateStatusSchema.safeParse(data);
+  if (!validation.success) {
+    console.error(validation.error);
+    throw new Error("Dados de atualização de status inválidos.");
+  }
+
+  const { orderId, paymentStatus, orderStatus } = validation.data;
+  const orderRef = doc(db, "orders", orderId);
+  
+  const updateData: { [key: string]: string } = {};
+  if (paymentStatus) {
+    updateData.paymentStatus = paymentStatus;
+  }
+  if (orderStatus) {
+    updateData.orderStatus = orderStatus;
+  }
+
+  if (Object.keys(updateData).length === 0) {
+    throw new Error("Nenhum status para atualizar.");
+  }
+
+  try {
+    await updateDoc(orderRef, updateData);
+    return { success: true, message: "Status do pedido atualizado com sucesso." };
+  } catch (error) {
+    console.error("Error updating order status:", error);
+    throw new Error("Falha ao atualizar o status do pedido.");
+  }
+}
