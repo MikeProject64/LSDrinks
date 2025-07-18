@@ -19,7 +19,7 @@ import { getPaymentSettings, PaymentSettings, saveOrder } from '@/actions/paymen
 import { createPaymentIntent } from '@/actions/create-payment-intent';
 import { toast } from '@/hooks/use-toast';
 import { ShieldCheck } from 'lucide-react';
-import PaymentOnDeliveryModal from './PaymentOnDeliveryModal'; // Importar o novo modal
+import PaymentOnDeliveryModal from './PaymentOnDeliveryModal';
 
 interface CheckoutClientPageProps {}
 
@@ -58,11 +58,11 @@ const StripeCheckoutForm = ({ onFinalizing, onSuccess, deliveryInfo, totalAmount
     const [isLoading, setIsLoading] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-    const handleSubmit = async (event: React.FormEvent) => {
+    const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
         
         if (!stripe || !elements) {
-            toast({ title: "Erro", description: "Stripe não foi carregado.", variant: "destructive" });
+            toast({ title: "Erro", description: "Stripe não foi carregado. Tente novamente.", variant: "destructive" });
             return;
         }
         
@@ -74,6 +74,7 @@ const StripeCheckoutForm = ({ onFinalizing, onSuccess, deliveryInfo, totalAmount
         if (submitError) {
             setErrorMessage(submitError.message || "Ocorreu um erro ao submeter o formulário.");
             setIsLoading(false);
+            // Re-enable payment step
             return;
         }
 
@@ -84,7 +85,7 @@ const StripeCheckoutForm = ({ onFinalizing, onSuccess, deliveryInfo, totalAmount
 
         if (confirmError) {
             setErrorMessage(confirmError.message || "Falha na confirmação do pagamento.");
-            toast({ title: 'Erro', description: confirmError.message, variant: 'destructive'});
+            toast({ title: 'Erro de Pagamento', description: confirmError.message, variant: 'destructive'});
             setIsLoading(false);
             return;
         }
@@ -164,16 +165,16 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
   const appearance: Appearance = {
     theme: 'night',
     variables: {
-      colorPrimary: '#f97316',
-      colorBackground: '#090e18',
-      colorText: '#f7f9fa',
+      colorPrimary: '#008080',
+      colorBackground: '#222222',
+      colorText: '#ffffff',
       colorDanger: '#e53e3e',
       fontFamily: 'Inter, sans-serif',
       spacingUnit: '4px',
       borderRadius: '0.5rem',
     },
     rules: {
-      '.Input': { backgroundColor: '#1e293b', border: '1px solid #1e293b' }
+      '.Input': { backgroundColor: '#333333', border: '1px solid #444444' }
     }
   };
 
@@ -355,7 +356,7 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
                         {paymentSettings?.isLive && (
                            <button className="w-full p-4 border rounded-lg text-left hover:bg-muted/50 transition-colors" onClick={prepareStripePayment}>
                                 <div className="flex items-center gap-4">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-10 h-10 text-primary shrink-0"><rect width="20" height="14" x="2" y="5" rx="2" /><line x1="2" x2="22" y1="10" y2="10" /></svg>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-10 h-10 text-primary shrink-0"><rect width="20" height="14" x="2" y="5" rx="2" /><line x1="2" x2="22" y1="10" y2="10" /></svg>
                                     <div>
                                         <span className="font-semibold text-lg">Cartão de Crédito</span>
                                         <p className="text-sm text-muted-foreground">Pagamento seguro via Stripe.</p>
@@ -405,13 +406,13 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
           {renderContent()}
         </div>
       </div>
-      {paymentSettings?.pixKey && (
+      {paymentSettings?.isPaymentOnDeliveryEnabled && (
           <PaymentOnDeliveryModal
               isOpen={isModalOpen}
               onClose={() => setIsModalOpen(false)}
               onSubmit={handlePaymentOnDelivery}
               totalAmount={totalWithFee}
-              pixKey={paymentSettings.pixKey}
+              pixKey={paymentSettings.pixKey || ''}
           />
       )}
     </>
