@@ -3,7 +3,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import Image from "next/image";
-import { getItems, deleteItem } from "@/actions/item-actions";
+import { getItemsPaginated, deleteItem } from "@/actions/item-actions";
 import AdminLayout from "@/components/AdminLayout";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,6 +12,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  CardFooter
 } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -32,6 +33,8 @@ interface Item {
   categoryName: string;
 }
 
+const ITEMS_PER_PAGE = 10;
+
 export default function ItemsListPage() {
   const { toast } = useToast();
   const router = useRouter();
@@ -41,11 +44,41 @@ export default function ItemsListPage() {
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const fetchItems = async () => {
+  const [lastVisibleId, setLastVisibleId] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageHistory, setPageHistory] = useState<(string | null)[]>([null]);
+
+
+  const fetchItems = async (direction: 'next' | 'prev' | 'current' = 'current') => {
     setIsLoading(true);
     try {
-      const fetchedItems = await getItems();
-      setItems(fetchedItems as Item[]);
+        let lastId = lastVisibleId;
+        if (direction === 'next') {
+            // we already have the lastVisibleId for the next page
+        } else if (direction === 'prev') {
+            // The last item of the *previous* page is what we need for `startAfter`
+            lastId = page > 2 ? pageHistory[page - 2] : null;
+        }
+
+      const result = await getItemsPaginated({ pageLimit: ITEMS_PER_PAGE, lastVisibleId: lastId });
+      
+      setItems(result.items as Item[]);
+      setHasMore(result.hasMore);
+
+      if (direction === 'next') {
+        setLastVisibleId(result.lastVisibleId);
+        // Only add to history if we are moving to a new page not already in history
+        if (page + 1 > pageHistory.length) {
+            setPageHistory([...pageHistory, result.lastVisibleId]);
+        }
+        setPage(p => p + 1);
+      } else if (direction === 'prev') {
+        setPage(p => Math.max(1, p - 1));
+        // The last visible id for the new current page is the one we just fetched to get here
+        setLastVisibleId(lastId);
+      }
+
     } catch (error) {
       toast({
         variant: "destructive",
@@ -58,7 +91,7 @@ export default function ItemsListPage() {
   };
 
   useEffect(() => {
-    fetchItems();
+    fetchItems('current');
   }, []);
 
   const handleDeleteConfirm = () => {
@@ -68,7 +101,7 @@ export default function ItemsListPage() {
       try {
         await deleteItem(selectedItem.id);
         toast({ title: "Sucesso!", description: "Item excluído com sucesso." });
-        fetchItems(); // Refresh list
+        fetchItems('current'); // Refresh list
       } catch (error) {
         toast({ variant: "destructive", title: "Erro!", description: "Não foi possível excluir o item." });
       } finally {
@@ -175,6 +208,19 @@ export default function ItemsListPage() {
               </Table>
              )}
           </CardContent>
+          <CardFooter>
+            <div className="text-xs text-muted-foreground">
+                Página <strong>{page}</strong>
+            </div>
+            <div className="ml-auto flex items-center gap-2">
+                <Button size="sm" variant="outline" onClick={() => fetchItems('prev')} disabled={page <= 1 || isLoading}>
+                    Anterior
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => fetchItems('next')} disabled={!hasMore || isLoading}>
+                    Próximo
+                </Button>
+            </div>
+        </CardFooter>
       </Card>
 
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
