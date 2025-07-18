@@ -80,6 +80,7 @@ export default async function AdminOrdersPage() {
                                             width={40}
                                             height={40}
                                             className="rounded-sm object-cover"
+                                            sizes="40px"
                                         />
                                         <div>
                                             <p className="text-sm font-semibold">{item.title}</p>

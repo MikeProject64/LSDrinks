@@ -125,6 +125,7 @@ export default function ItemsListPage() {
                               height="64"
                               src={item.imageUrl}
                               width="64"
+                              sizes="64px"
                             />
                           ) : (
                             <div className="w-16 h-16 bg-gray-200 rounded-md flex items-center justify-center">

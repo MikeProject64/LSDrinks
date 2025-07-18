@@ -62,7 +62,7 @@ export default function HomePageClient({ highlights, categories, items }: HomePa
                         fill
                         className="object-cover"
                         priority={index === 0}
-                        sizes="100vw"
+                        sizes="(max-width: 768px) 100vw, 50vw"
                       />
                       <div className="absolute bottom-0 left-0 w-full h-2/5 bg-gradient-to-t from-black/80 to-transparent" />
                       <div className="absolute bottom-0 left-0 w-full flex flex-col items-start px-4 pb-4 z-10">

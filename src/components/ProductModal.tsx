@@ -53,6 +53,7 @@ const ProductModal: React.FC<ProductModalProps> = ({ product, isOpen, onClose })
             alt={product.title}
             fill
             className="object-cover rounded-t-lg"
+            sizes="(max-width: 640px) 90vw, 425px"
           />
         </div>
         <DialogHeader className="p-6 pb-2">

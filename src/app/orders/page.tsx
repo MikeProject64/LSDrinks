@@ -96,6 +96,7 @@ export default function OrdersPage() {
                                         width={40}
                                         height={40}
                                         className="rounded-md object-cover"
+                                        sizes="40px"
                                         />
                                         <div>
                                         <p className="font-semibold text-sm">{item.title}</p>

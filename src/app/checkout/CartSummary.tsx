@@ -38,6 +38,7 @@ export default function CartSummary() {
                 width={64}
                 height={64}
                 className="rounded-md object-cover"
+                sizes="64px"
               />
               <div>
                 <p className="font-semibold">{item.title}</p>
