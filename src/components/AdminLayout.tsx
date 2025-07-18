@@ -4,18 +4,28 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { Home, Menu, Package, Package2, Tag, List, PlusCircle, Star, CreditCard } from 'lucide-react';
+import { Home, Menu, Package, Package2, Tag, List, Star, CreditCard, Settings } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './ui/accordion';
+import { useEffect, useState } from 'react';
+import { getSettings } from '@/actions/settings-actions';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const [storeName, setStoreName] = useState('LSDrinks');
+
+  useEffect(() => {
+    getSettings().then(settings => {
+        setStoreName(settings.storeName);
+    });
+  }, []);
 
   const navItems = [
     { href: '/admin/dashboard', label: 'Painel', icon: Home },
     { href: '/admin/highlights', label: 'Destaques', icon: Star },
     { href: '/admin/payment', label: 'Pagamento', icon: CreditCard },
+    { href: '/admin/settings', label: 'Configurações', icon: Settings },
   ];
 
   const productsNav = [
@@ -34,7 +44,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
             <Link href="/" className="flex items-center gap-2 font-semibold">
               <Package2 className="h-6 w-6" />
-              <span className="">LSDrinks</span>
+              <span className="">{storeName}</span>
             </Link>
           </div>
           <div className="flex-1">
@@ -104,7 +114,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   className="flex items-center gap-2 text-lg font-semibold mb-4"
                 >
                   <Package2 className="h-6 w-6" />
-                  <span className="">LSDrinks</span>
+                  <span className="">{storeName}</span>
                 </Link>
                 {navItems.map((item) => (
                   <Link

@@ -1,15 +1,19 @@
-import type {Metadata} from 'next';
+import type { Metadata } from 'next';
 import './globals.css';
 import { AuthProvider } from '@/context/AuthContext';
 import LayoutManager from '@/components/LayoutManager';
 import { Inter } from 'next/font/google';
+import { getSettings } from '@/actions/settings-actions';
 
 const inter = Inter({ subsets: ["latin"] });
 
-export const metadata: Metadata = {
-  title: 'LSDrinks',
-  description: 'Your favorite drinks, delivered.',
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const settings = await getSettings();
+  return {
+    title: settings.storeName,
+    description: `Peça suas bebidas favoritas de ${settings.storeName}`,
+  };
+}
 
 export default function RootLayout({
   children,

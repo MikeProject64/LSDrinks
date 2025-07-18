@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useMemo, useCallback, useEffect } from 'react';
 import type { CartItem, Product } from '@/types';
+import { getSettings } from '@/actions/settings-actions';
 
 interface CartContextType {
   items: CartItem[];
@@ -19,6 +20,7 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [items, setItems] = useState<CartItem[]>([]);
+  const [deliveryFee, setDeliveryFee] = useState(5); // Default value
 
   useEffect(() => {
     // Carrega o carrinho do localStorage quando o componente é montado no cliente
@@ -30,6 +32,12 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error) {
       console.error("Failed to parse cart items from localStorage", error);
     }
+    
+    // Carrega a taxa de entrega das configurações
+    getSettings().then(settings => {
+      setDeliveryFee(settings.deliveryFee);
+    });
+
   }, []);
 
   useEffect(() => {
@@ -75,7 +83,6 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const cartCount = useMemo(() => items.reduce((sum, item) => sum + item.quantity, 0), [items]);
   const cartTotal = useMemo(() => items.reduce((sum, item) => sum + item.price * item.quantity, 0), [items]);
-  const deliveryFee = 5;
   const totalWithFee = useMemo(() => cartTotal + deliveryFee, [cartTotal, deliveryFee]);
 
   const value = useMemo(() => ({
