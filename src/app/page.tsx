@@ -4,9 +4,11 @@ import { getItems } from '@/actions/item-actions';
 import HomePageClient from './HomePageClient';
 
 export default async function Home() {
-  const activeHighlights = await getActiveHighlights();
-  const categories = await getCategories();
-  const items = await getItems();
+  const [activeHighlights, categories, items] = await Promise.all([
+    getActiveHighlights(),
+    getCategories(),
+    getItems()
+  ]);
 
   return (
     <HomePageClient 

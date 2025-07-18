@@ -3,9 +3,11 @@ import React, { useState, useRef } from 'react';
 import ProductCard from '@/components/ProductCard';
 import { Carousel, CarouselContent, CarouselItem } from '@/components/ui/carousel';
 import Autoplay from "embla-carousel-autoplay";
-import ProductModal from '@/components/ProductModal';
 import Link from 'next/link';
 import Image from 'next/image';
+import dynamic from 'next/dynamic';
+
+const ProductModal = dynamic(() => import('@/components/ProductModal'), { ssr: false });
 
 // Tipos que refletem o retorno das actions
 interface Highlight { id: string; title: string; description: string; imageUrl: string; link: string; isActive: boolean; }
@@ -62,6 +64,7 @@ export default function HomePageClient({ highlights, categories, items }: HomePa
                         fill
                         className="object-cover"
                         priority={index === 0}
+                        loading={index === 0 ? 'eager' : 'lazy'}
                         sizes="(max-width: 768px) 100vw, 50vw"
                       />
                       <div className="absolute bottom-0 left-0 w-full h-2/5 bg-gradient-to-t from-black/80 to-transparent" />

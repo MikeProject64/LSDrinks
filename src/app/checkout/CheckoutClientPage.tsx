@@ -63,8 +63,7 @@ const getDeliveryInfoFromLocal = (): DeliveryFormValues | null => {
 };
 
 
-const StripeForm = ({ onFinalizing, onSuccess, deliveryInfo, totalAmount, orderId }: { 
-    onFinalizing: () => void; 
+const StripeForm = ({ onSuccess, deliveryInfo, totalAmount, orderId }: { 
     onSuccess: (orderId: string) => void;
     deliveryInfo: DeliveryFormValues;
     totalAmount: number;
@@ -85,7 +84,6 @@ const StripeForm = ({ onFinalizing, onSuccess, deliveryInfo, totalAmount, orderI
         }
         
         setIsLoading(true);
-        onFinalizing();
         setErrorMessage(null);
         
         // 1. Trigger form validation and gather data
@@ -131,11 +129,12 @@ const StripeForm = ({ onFinalizing, onSuccess, deliveryInfo, totalAmount, orderI
                 const error = err as Error;
                 setErrorMessage(error.message);
                 toast({ title: 'Erro Pós-Pagamento', description: error.message, variant: 'destructive' });
+                setIsLoading(false);
             }
         } else {
             setErrorMessage(`Status do pagamento: ${paymentIntent?.status ?? 'desconhecido'}`);
+            setIsLoading(false);
         }
-        // No need to set loading to false here as we navigate away on success
     };
 
     return (
@@ -364,7 +363,6 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
                                 <StripeForm
                                     deliveryInfo={deliveryInfo}
                                     onSuccess={handleStripeSuccess}
-                                    onFinalizing={() => setStep('finalizing')}
                                     totalAmount={stripeTotal}
                                     orderId={stripeOrderId}
                                 />
