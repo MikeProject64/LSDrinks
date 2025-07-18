@@ -27,6 +27,7 @@ const FormattedDate = ({ dateString }: { dateString: string }) => {
     const [formattedDate, setFormattedDate] = useState<string | null>(null);
 
     useEffect(() => {
+        // This effect runs only on the client, preventing hydration mismatch
         setFormattedDate(new Date(dateString).toLocaleString("pt-BR", {
             day: '2-digit', month: '2-digit', year: 'numeric',
             hour: '2-digit', minute: '2-digit'
@@ -34,6 +35,7 @@ const FormattedDate = ({ dateString }: { dateString: string }) => {
     }, [dateString]);
 
     if (!formattedDate) {
+        // Render a skeleton or a non-locale-specific date on the server
         return <Skeleton className="h-4 w-36" />;
     }
 
@@ -46,11 +48,19 @@ export default function OrderManager({ initialOrders }: { initialOrders: Order[]
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [alertContent, setAlertContent] = useState({ title: '', description: '', onConfirm: () => {} });
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
 
   const fetchAndSetOrders = async () => {
+    setIsLoading(true);
     startTransition(async () => {
-      const updatedOrders = await getAllOrders();
-      setOrders(updatedOrders);
+      try {
+        const updatedOrders = await getAllOrders();
+        setOrders(updatedOrders);
+      } catch (error) {
+        toast({ title: "Erro", description: "Falha ao recarregar os pedidos.", variant: "destructive" });
+      } finally {
+        setIsLoading(false);
+      }
     });
   };
 
@@ -59,7 +69,7 @@ export default function OrderManager({ initialOrders }: { initialOrders: Order[]
       try {
         await updateOrderStatus({ orderId, [type]: value });
         toast({ title: "Sucesso", description: "Status do pedido atualizado." });
-        fetchAndSetOrders();
+        await fetchAndSetOrders();
       } catch (error) {
         const e = error as Error;
         toast({ variant: "destructive", title: "Erro", description: e.message });
@@ -76,7 +86,7 @@ export default function OrderManager({ initialOrders }: { initialOrders: Order[]
           try {
             await deleteOrder(order.id);
             toast({ title: "Sucesso!", description: "Pedido excluído com sucesso."});
-            fetchAndSetOrders();
+            await fetchAndSetOrders();
           } catch (error) {
             const e = error as Error;
             toast({ variant: "destructive", title: "Erro!", description: e.message });
@@ -99,7 +109,7 @@ export default function OrderManager({ initialOrders }: { initialOrders: Order[]
             await bulkDeleteOrders(selectedOrderIds);
             toast({ title: "Sucesso!", description: `${selectedOrderIds.length} pedidos foram excluídos.` });
             setSelectedOrderIds([]);
-            fetchAndSetOrders();
+            await fetchAndSetOrders();
           } catch (error) {
             const e = error as Error;
             toast({ variant: "destructive", title: "Erro!", description: e.message });
@@ -122,7 +132,7 @@ export default function OrderManager({ initialOrders }: { initialOrders: Order[]
             await bulkUpdateOrders(selectedOrderIds, { [type]: value });
             toast({ title: "Sucesso!", description: 'Pedidos atualizados.' });
             setSelectedOrderIds([]);
-            fetchAndSetOrders();
+            await fetchAndSetOrders();
           } catch (error) {
             const e = error as Error;
             toast({ variant: "destructive", title: "Erro!", description: e.message });
@@ -147,14 +157,32 @@ export default function OrderManager({ initialOrders }: { initialOrders: Order[]
   const getOrderStatusVariant = (status: string): "default" | "secondary" | "outline" | "destructive" | null | undefined => {
     switch (status) {
         case 'Aguardando': return 'secondary';
-        case 'Confirmado': return 'outline';
+        case 'Confirmado': return 'default';
         case 'Enviado': return 'default';
-        case 'Entregue': return 'default'; // Could be a different color, e.g., a success green
+        case 'Entregue': return 'bg-green-600/80 text-white hover:bg-green-600/90';
         default: return 'outline';
     }
   };
 
   const isAllSelected = orders.length > 0 && selectedOrderIds.length === orders.length;
+
+  if (isLoading && orders.length === 0) {
+      return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Histórico de Pedidos</CardTitle>
+                <CardDescription>Carregando pedidos...</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <div className="space-y-4">
+                    <Skeleton className="h-12 w-full" />
+                    <Skeleton className="h-12 w-full" />
+                    <Skeleton className="h-12 w-full" />
+                </div>
+            </CardContent>
+        </Card>
+      )
+  }
 
   return (
     <Card>
@@ -208,7 +236,7 @@ export default function OrderManager({ initialOrders }: { initialOrders: Order[]
                     <span>Pagamento</span>
                     <span>Status</span>
                 </div>
-                <div className="w-[124px]"></div>
+                <div className="w-[244px]"></div>
             </div>
             {orders.map((order) => (
               <AccordionItem value={order.id} key={order.id} className="border-b-0">
@@ -225,7 +253,7 @@ export default function OrderManager({ initialOrders }: { initialOrders: Order[]
                       <div className="w-full grid grid-cols-2 md:grid-cols-6 items-center text-sm font-normal gap-4 text-left">
                         <span className="font-mono font-semibold truncate">#{order.id}</span>
                         <div className="hidden md:block"><FormattedDate dateString={order.createdAt} /></div>
-                        <div className="hidden md:block truncate">{order.customer.name}</div>
+                        <div className="hidden md:block truncate">{order.customer?.name || 'Não informado'}</div>
                         <span className="font-medium">R$ {order.totalAmount.toFixed(2)}</span>
                         <div><Badge className={getPaymentStatusVariant(order.paymentStatus)}>{order.paymentStatus}</Badge></div>
                         <div><Badge variant={getOrderStatusVariant(order.orderStatus)}>{order.orderStatus}</Badge></div>
