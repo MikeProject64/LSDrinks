@@ -39,6 +39,7 @@ export default function CartSummary() {
                 height={64}
                 className="rounded-md object-cover"
                 sizes="64px"
+                style={{ height: 'auto' }}
               />
               <div>
                 <p className="font-semibold">{item.title}</p>
