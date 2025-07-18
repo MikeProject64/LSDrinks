@@ -44,8 +44,7 @@ const saveOrderIdLocally = (orderId: string) => {
     }
 };
 
-// Sub-componente para o formulário Stripe
-const StripeCheckoutForm = ({ onFinalizing, onSuccess, deliveryInfo, totalAmount, orderId }: { 
+const StripeForm = ({ onFinalizing, onSuccess, deliveryInfo, totalAmount, orderId }: { 
     onFinalizing: () => void; 
     onSuccess: (orderId: string) => void;
     deliveryInfo: DeliveryFormValues;
@@ -74,7 +73,6 @@ const StripeCheckoutForm = ({ onFinalizing, onSuccess, deliveryInfo, totalAmount
         if (submitError) {
             setErrorMessage(submitError.message || "Ocorreu um erro ao submeter o formulário.");
             setIsLoading(false);
-            // Re-enable payment step
             return;
         }
 
@@ -323,7 +321,7 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
                 </Form>
             )
         case 'payment':
-            const noPaymentMethods = !paymentSettings?.isLive && !paymentSettings.isPaymentOnDeliveryEnabled;
+            const noPaymentMethods = !paymentSettings?.isLive && !paymentSettings?.isPaymentOnDeliveryEnabled;
             if(isLoading || !deliveryInfo) return <p>Carregando...</p>;
 
             if (selectedPayment === 'stripe') {
@@ -333,7 +331,7 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
                        <div className="border-t border-dashed pt-8">
                         {clientSecret && stripePromise && stripeOrderId ? (
                             <Elements stripe={stripePromise} options={{ clientSecret, appearance }}>
-                                <StripeCheckoutForm
+                                <StripeForm
                                 deliveryInfo={deliveryInfo}
                                 onSuccess={handleStripeSuccess}
                                 onFinalizing={() => setStep('finalizing')}
@@ -418,3 +416,5 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
     </>
   );
 }
+
+    
