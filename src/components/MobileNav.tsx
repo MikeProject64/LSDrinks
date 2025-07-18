@@ -50,7 +50,7 @@ const MobileNav = () => {
             />
             {item.href === '/checkout' && cartCount > 0 && (
               <Badge
-                variant="destructive"
+                variant="default"
                 className="absolute top-1 right-[calc(50%-2rem)] h-5 w-5 flex items-center justify-center p-1 text-xs"
               >
                 {cartCount}
