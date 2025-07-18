@@ -210,8 +210,11 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
       },
       rules: {
         '.Input': {
-          backgroundColor: 'hsl(var(--background))',
+          backgroundColor: 'hsl(var(--input))',
           border: '1px solid hsl(var(--border))'
+        },
+        '.Label': {
+            color: 'hsl(var(--primary))',
         }
       }
   };
@@ -254,8 +257,6 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
     generatePayload();
   }, [selectedPayment, paymentSettings?.pixKey, totalWithFee]);
 
-  // Effect for PIX QR Code generation.
-  // It now also depends on onDeliveryMethod to redraw the canvas when the user switches back to the PIX tab.
   useEffect(() => {
     if (pixPayload && canvasRef.current && onDeliveryMethod === 'pix') {
         QRCode.toCanvas(canvasRef.current, pixPayload, { width: 220, margin: 2, errorCorrectionLevel: 'H' }, (error) => {
@@ -506,8 +507,8 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
                         {paymentSettings?.isPaymentOnDeliveryEnabled && (
                             <button className="w-full p-4 border rounded-lg text-left hover:bg-muted/50 transition-colors" onClick={() => setSelectedPayment('on_delivery')}>
                                 <div className="flex items-center gap-4">
-                                    <svg viewBox="0 0 40 40" width="40" height="40" xmlns="http://www.w3.org/2000/svg" className="w-10 h-10 text-primary shrink-0" fill="currentColor">
-                                      <text x="5" y="28" fontFamily="Arial, sans-serif" fontSize="20" fontWeight="bold">R$</text>
+                                    <svg viewBox="0 0 24 24" width="40" height="40" xmlns="http://www.w3.org/2000/svg" className="w-10 h-10 text-primary shrink-0" fill="currentColor">
+                                      <path d="M3.393 8.357A2.25 2.25 0 0 1 5.25 7.5h13.5a2.25 2.25 0 0 1 1.857.857l1.586 2.4A.75.75 0 0 1 21.75 11h-1.5a.75.75 0 0 1 0-1.5H20.25a.75.75 0 0 1-.621-.286L18.443 7.5H5.557L4.371 9.214a.75.75 0 0 1-.621.286H2.25a.75.75 0 0 1 0-1.5H3.75a.75.75 0 0 1 .643-.443l-1-1.5zM4.03 12.15a2.25 2.25 0 0 0-1.78 2.1l.15 2.25A2.25 2.25 0 0 0 4.65 18.75h14.7a2.25 2.25 0 0 0 2.25-2.25l.15-2.25a2.25 2.25 0 0 0-1.78-2.1H4.03zm9.22 3.6a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0zm-3.75.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5zm.75-3a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0zm3.75.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5z"/>
                                     </svg>
                                     <div>
                                         <span className="font-semibold text-lg">Pagar na Entrega</span>
