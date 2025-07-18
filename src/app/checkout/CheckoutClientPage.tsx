@@ -341,17 +341,6 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
             return (
               <div className="space-y-8">
                     <div className="space-y-4">
-                        {paymentSettings?.isPaymentOnDeliveryEnabled && (
-                            <button className="w-full p-4 border rounded-lg text-left hover:bg-muted/50 transition-colors" onClick={handlePaymentOnDelivery}>
-                                <div className="flex items-center gap-4">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-10 h-10 text-primary shrink-0"><path d="M2 6h20M7 12h10M9 18h6" /><path d="M2 6v12c0 1.1.9 2 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2z" /></svg>
-                                    <div>
-                                        <span className="font-semibold text-lg">Pagar na Entrega</span>
-                                        <p className="text-sm text-muted-foreground">Pague com PIX ou dinheiro ao receber.</p>
-                                    </div>
-                                </div>
-                            </button>
-                        )}
                         {paymentSettings?.isLive && (
                            <button className="w-full p-4 border rounded-lg text-left hover:bg-muted/50 transition-colors" onClick={prepareStripePayment}>
                                 <div className="flex items-center gap-4">
@@ -359,6 +348,17 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
                                     <div>
                                         <span className="font-semibold text-lg">Cartão de Crédito</span>
                                         <p className="text-sm text-muted-foreground">Pagamento seguro via Stripe.</p>
+                                    </div>
+                                </div>
+                            </button>
+                        )}
+                        {paymentSettings?.isPaymentOnDeliveryEnabled && (
+                            <button className="w-full p-4 border rounded-lg text-left hover:bg-muted/50 transition-colors" onClick={handlePaymentOnDelivery}>
+                                <div className="flex items-center gap-4">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-10 h-10 text-primary shrink-0"><path d="M2 6h20M7 12h10M9 18h6" /><path d="M2 6v12c0 1.1.9 2 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2z" /></svg>
+                                    <div>
+                                        <span className="font-semibold text-lg">Pagar na Entrega</span>
+                                        <p className="text-sm text-muted-foreground">Pague com PIX ou dinheiro ao receber.</p>
                                     </div>
                                 </div>
                             </button>
