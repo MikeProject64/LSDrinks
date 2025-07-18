@@ -1,5 +1,5 @@
 
-import { getOrders } from "@/actions/payment-actions";
+import { getAllOrders } from "@/actions/payment-actions";
 import AdminLayout from "@/components/AdminLayout";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -26,7 +26,7 @@ import {
 import Image from "next/image";
 
 export default async function AdminOrdersPage() {
-  const orders = await getOrders();
+  const orders = await getAllOrders();
 
   return (
     <AdminLayout>
@@ -49,21 +49,25 @@ export default async function AdminOrdersPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>ID do Pedido</TableHead>
+                  <TableHead className="w-[120px]">ID do Pedido</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Pagamento</TableHead>
                   <TableHead>Data</TableHead>
                   <TableHead className="text-right">Total</TableHead>
-                  <TableHead className="text-center">Detalhes</TableHead>
+                  <TableHead className="text-center w-[120px]">Detalhes</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {orders.map((order) => (
                   <TableRow key={order.id}>
-                    <TableCell className="font-mono text-xs">{order.id}</TableCell>
+                    <TableCell className="font-mono text-xs truncate">{order.id}</TableCell>
                     <TableCell>
                       <Badge variant={order.status === "Pago" ? "default" : "secondary"}>
                         {order.status}
                       </Badge>
+                    </TableCell>
+                    <TableCell>
+                        {order.paymentMethod}
                     </TableCell>
                     <TableCell>
                       {new Date(order.createdAt).toLocaleString("pt-BR")}
@@ -71,10 +75,10 @@ export default async function AdminOrdersPage() {
                     <TableCell className="text-right font-medium">
                       R$ {order.totalAmount.toFixed(2)}
                     </TableCell>
-                    <TableCell className="text-center">
+                    <TableCell className="px-0">
                     <Accordion type="single" collapsible className="w-full">
                         <AccordionItem value={order.id} className="border-none">
-                            <AccordionTrigger className="text-sm p-2 hover:no-underline">Ver Itens</AccordionTrigger>
+                            <AccordionTrigger className="text-sm p-2 hover:no-underline justify-center">Ver Itens</AccordionTrigger>
                             <AccordionContent>
                                 <div className="space-y-2 p-2 bg-muted/50 rounded-md">
                                 {order.items.map((item) => (

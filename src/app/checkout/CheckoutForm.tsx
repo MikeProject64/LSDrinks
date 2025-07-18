@@ -28,6 +28,18 @@ const cardElementOptions = {
   hidePostalCode: true,
 };
 
+const saveOrderIdLocally = (orderId: string) => {
+    try {
+      const existingOrderIds = JSON.parse(localStorage.getItem('myOrderIds') || '[]');
+      if (!existingOrderIds.includes(orderId)) {
+        const updatedOrderIds = [...existingOrderIds, orderId];
+        localStorage.setItem('myOrderIds', JSON.stringify(updatedOrderIds));
+      }
+    } catch (e) {
+      console.error("Failed to save order ID to local storage", e);
+    }
+};
+
 export default function CheckoutForm() {
   const stripe = useStripe();
   const elements = useElements();
@@ -72,12 +84,13 @@ export default function CheckoutForm() {
         paymentMethodId: paymentMethod.id,
       });
 
-      if (result.success) {
+      if (result.success && result.orderId) {
+        saveOrderIdLocally(result.orderId);
         toast({ title: 'Sucesso!', description: 'Seu pedido foi realizado com sucesso.' });
         clearCart();
         router.push('/orders');
       } else {
-         throw new Error('A transação falhou.');
+         throw new Error(result.orderId || 'A transação falhou.');
       }
     } catch (err) {
       const error = err as Error;

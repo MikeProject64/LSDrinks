@@ -2,7 +2,7 @@
 
 import { z } from 'zod';
 import { db } from '@/lib/firebase';
-import { doc, setDoc, getDoc, collection, addDoc, serverTimestamp, query, getDocs, orderBy, Timestamp } from 'firebase/firestore';
+import { doc, setDoc, getDoc, collection, addDoc, serverTimestamp, query, getDocs, orderBy, Timestamp, where, documentId, writeBatch } from 'firebase/firestore';
 import Stripe from 'stripe';
 import { CartItem } from '@/types';
 
@@ -77,6 +77,7 @@ export async function processCheckout(data: { items: CartItem[], totalAmount: nu
   const { items, totalAmount, paymentMethodId } = data;
 
   const paymentSettings = await getPaymentSettings();
+  let orderId: string;
 
   // Caso: Pagamento na Entrega
   if (paymentMethodId === 'on_delivery') {
@@ -91,7 +92,8 @@ export async function processCheckout(data: { items: CartItem[], totalAmount: nu
       createdAt: serverTimestamp(),
     };
     const orderDoc = await addDoc(collection(db, 'orders'), orderData);
-    return { success: true, orderId: orderDoc.id };
+    orderId = orderDoc.id;
+    return { success: true, orderId };
   }
 
   // Caso: Pagamento com Stripe
@@ -122,8 +124,9 @@ export async function processCheckout(data: { items: CartItem[], totalAmount: nu
         stripePaymentIntentId: paymentIntent.id,
         createdAt: serverTimestamp(),
       };
-      await addDoc(collection(db, 'orders'), orderData);
-      return { success: true, orderId: paymentIntent.id };
+      const orderDoc = await addDoc(collection(db, 'orders'), orderData);
+      orderId = orderDoc.id;
+      return { success: true, orderId };
     } else {
        throw new Error('Falha no pagamento.');
     }
@@ -139,7 +142,7 @@ export async function processCheckout(data: { items: CartItem[], totalAmount: nu
   }
 }
 
-export async function getOrders() {
+export async function getAllOrders() {
   try {
     const q = query(collection(db, "orders"), orderBy("createdAt", "desc"));
     const querySnapshot = await getDocs(q);
@@ -151,6 +154,7 @@ export async function getOrders() {
         items: data.items as CartItem[],
         totalAmount: data.totalAmount,
         status: data.status,
+        paymentMethod: data.paymentMethod,
         createdAt: (data.createdAt as Timestamp).toDate().toISOString(),
       };
     });
@@ -161,3 +165,39 @@ export async function getOrders() {
     throw new Error('Falha ao buscar os pedidos.');
   }
 }
+
+export async function getOrdersByIds(ids: string[]) {
+    if (!ids || ids.length === 0) {
+      return [];
+    }
+  
+    try {
+      const orders: any[] = [];
+      // Firestore 'in' query has a limit of 30 elements, so we batch the requests
+      for (let i = 0; i < ids.length; i += 30) {
+        const batchIds = ids.slice(i, i + 30);
+        const q = query(collection(db, "orders"), where(documentId(), "in", batchIds));
+        const querySnapshot = await getDocs(q);
+        
+        querySnapshot.forEach(doc => {
+          const data = doc.data();
+          orders.push({
+            id: doc.id,
+            items: data.items as CartItem[],
+            totalAmount: data.totalAmount,
+            status: data.status,
+            paymentMethod: data.paymentMethod,
+            createdAt: (data.createdAt as Timestamp).toDate().toISOString(),
+          });
+        });
+      }
+      
+      // Sort orders by creation date descending, as the batching might mess up the order
+      orders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  
+      return orders;
+    } catch (e) {
+      console.error("Error fetching orders by IDs: ", e);
+      throw new Error('Falha ao buscar os pedidos.');
+    }
+  }

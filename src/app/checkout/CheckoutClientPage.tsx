@@ -17,7 +17,19 @@ interface CheckoutClientPageProps {
   stripePromise: Promise<Stripe | null>;
 }
 
-type Step = 'summary' | 'payment-method' | 'processing';
+type Step = 'summary' | 'payment-method' | 'payment-form' | 'processing';
+
+const saveOrderIdLocally = (orderId: string) => {
+    try {
+      const existingOrderIds = JSON.parse(localStorage.getItem('myOrderIds') || '[]');
+      if (!existingOrderIds.includes(orderId)) {
+        const updatedOrderIds = [...existingOrderIds, orderId];
+        localStorage.setItem('myOrderIds', JSON.stringify(updatedOrderIds));
+      }
+    } catch (e) {
+      console.error("Failed to save order ID to local storage", e);
+    }
+};
 
 export default function CheckoutClientPage({ stripePromise }: CheckoutClientPageProps) {
   const { items, totalWithFee, clearCart } = useCart();
@@ -52,7 +64,8 @@ export default function CheckoutClientPage({ stripePromise }: CheckoutClientPage
         paymentMethodId: 'on_delivery',
       });
 
-      if (result.success) {
+      if (result.success && result.orderId) {
+        saveOrderIdLocally(result.orderId);
         toast({ title: 'Sucesso!', description: 'Seu pedido foi realizado e será pago na entrega.' });
         clearCart();
         router.push('/orders');
@@ -91,7 +104,7 @@ export default function CheckoutClientPage({ stripePromise }: CheckoutClientPage
   }
   
   const renderStep = () => {
-    if (isLoading) {
+    if (isLoading && step !== 'processing') {
       return (
         <Card>
           <CardHeader><CardTitle>Carregando...</CardTitle></CardHeader>
@@ -136,6 +149,9 @@ export default function CheckoutClientPage({ stripePromise }: CheckoutClientPage
                   >
                     Pagamento na Entrega (PIX ou Dinheiro)
                   </Button>
+                )}
+                 {!paymentSettings?.isLive && !paymentSettings?.isPaymentOnDeliveryEnabled && (
+                    <p className='text-center text-muted-foreground'>Nenhum método de pagamento está habilitado no momento.</p>
                 )}
               </div>
               <div className="flex justify-between mt-6">
