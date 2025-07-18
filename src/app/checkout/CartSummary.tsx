@@ -1,11 +1,14 @@
+
 'use client';
 
 import { useCart } from '@/context/CartContext';
 import Image from 'next/image';
 import { Separator } from '@/components/ui/separator';
+import { Button } from '@/components/ui/button';
+import { Trash2 } from 'lucide-react';
 
 export default function CartSummary() {
-  const { items, cartTotal, deliveryFee, totalWithFee } = useCart();
+  const { items, cartTotal, deliveryFee, totalWithFee, clearCart } = useCart();
 
   if (items.length === 0) {
     return (
@@ -18,6 +21,13 @@ export default function CartSummary() {
 
   return (
     <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h3 className="text-lg font-semibold">Resumo do Pedido</h3>
+        <Button variant="ghost" size="sm" onClick={clearCart} className="text-muted-foreground hover:text-destructive">
+          <Trash2 className="w-4 h-4 mr-2" />
+          Limpar
+        </Button>
+      </div>
       <div className="space-y-4">
         {items.map((item) => (
           <div key={item.id} className="flex items-start justify-between gap-4">
