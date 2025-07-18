@@ -239,9 +239,9 @@ export default function OrderManager({ initialOrders }: { initialOrders: Order[]
                             disabled={isPending || order.paymentStatus === 'Pago'}
                             >
                             <SelectTrigger className="h-8 w-auto min-w-[110px] gap-1 text-xs"><SelectValue /></SelectTrigger>
-                            <SelectContent><_c>
+                            <SelectContent>
                                 {paymentStatusOptions.map(status => <SelectItem key={status} value={status}>{status}</SelectItem>)}
-                            </_c></SelectContent>
+                            </SelectContent>
                         </Select>
                         <Select
                             value={order.orderStatus}
