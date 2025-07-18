@@ -14,7 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Skeleton } from '@/components/ui/skeleton';
 import Image from 'next/image';
 import { CartItem } from '@/types';
-import { User, Phone, MapPin, CreditCard } from "lucide-react";
+import { User, Phone, MapPin, CreditCard, Calendar } from "lucide-react";
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 
@@ -32,6 +32,23 @@ interface Order {
         address: string;
     }
 }
+
+const FormattedDate = ({ dateString }: { dateString: string }) => {
+    const [formattedDate, setFormattedDate] = useState('');
+
+    useEffect(() => {
+        setFormattedDate(new Date(dateString).toLocaleString('pt-BR', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        }));
+    }, [dateString]);
+
+    return <span>{formattedDate}</span>;
+}
+
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -60,7 +77,11 @@ export default function OrdersPage() {
   }, []);
   
   const getPaymentStatusVariant = (status: string) => {
-    return status === 'Pago' ? 'default' : 'secondary';
+    switch (status) {
+        case 'Pago': return 'bg-green-600/80 text-white';
+        case 'Pendente': return 'bg-amber-500/80 text-white';
+        default: return 'secondary';
+    }
   };
 
   const getOrderStatusVariant = (status: string): "default" | "secondary" | "outline" | "destructive" | null | undefined => {
@@ -75,20 +96,15 @@ export default function OrdersPage() {
 
   const OrderSkeleton = () => (
     <div className="space-y-4">
-        <div className="border rounded-lg p-4 space-y-4">
-            <div className="flex justify-between items-center">
-                <Skeleton className="h-6 w-24" />
-                <Skeleton className="h-6 w-32" />
-                <Skeleton className="h-6 w-20" />
+        {[...Array(3)].map((_, i) => (
+             <div key={i} className="border rounded-lg p-4 space-y-4">
+                <div className="flex justify-between items-center">
+                    <Skeleton className="h-6 w-1/4" />
+                    <Skeleton className="h-6 w-1/5" />
+                    <Skeleton className="h-6 w-1/6" />
+                </div>
             </div>
-        </div>
-        <div className="border rounded-lg p-4 space-y-4">
-            <div className="flex justify-between items-center">
-                <Skeleton className="h-6 w-24" />
-                <Skeleton className="h-6 w-32" />
-                <Skeleton className="h-6 w-20" />
-            </div>
-        </div>
+        ))}
     </div>
   );
 
@@ -115,9 +131,15 @@ export default function OrdersPage() {
                 <AccordionItem value={order.id} key={order.id} className="border rounded-lg bg-card">
                   <AccordionTrigger className="p-4 hover:no-underline">
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center w-full gap-2 text-left">
-                      <span className="font-mono font-bold text-lg sm:text-base">#{order.id}</span>
+                        <div className="flex flex-col gap-1">
+                            <span className="font-mono font-bold text-lg sm:text-base">Pedido #{order.id}</span>
+                            <span className="text-xs text-muted-foreground flex items-center gap-1.5">
+                                <Calendar className="w-3 h-3"/>
+                                <FormattedDate dateString={order.createdAt} />
+                            </span>
+                        </div>
                       <div className='flex items-center gap-2'>
-                        <Badge variant={getPaymentStatusVariant(order.paymentStatus)}>{order.paymentStatus}</Badge>
+                        <Badge className={getPaymentStatusVariant(order.paymentStatus)}>{order.paymentStatus}</Badge>
                         <Badge variant={getOrderStatusVariant(order.orderStatus)}>{order.orderStatus}</Badge>
                       </div>
                       <span className="font-bold text-lg sm:text-base whitespace-nowrap">R$ {order.totalAmount.toFixed(2)}</span>

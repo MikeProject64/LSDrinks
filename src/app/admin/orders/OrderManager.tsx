@@ -2,30 +2,31 @@
 "use client";
 
 import { useState, useTransition, useEffect } from "react";
-import { getAllOrders, updateOrderStatus, deleteOrder } from "@/actions/payment-actions";
+import { getAllOrders, updateOrderStatus, deleteOrder, bulkUpdateOrders, bulkDeleteOrders } from "@/actions/payment-actions";
 import { toast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import Image from "next/image";
-import { User, Phone, MapPin, MoreHorizontal } from "lucide-react";
+import { User, Phone, MapPin, MoreHorizontal, Trash2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Checkbox } from "@/components/ui/checkbox";
 
 type Order = Awaited<ReturnType<typeof getAllOrders>>[0];
+type PaymentStatus = 'Pendente' | 'Pago';
+type OrderStatus = 'Aguardando' | 'Confirmado' | 'Enviado' | 'Entregue';
 
-const paymentStatusOptions = ['Pendente', 'Pago'] as const;
-const orderStatusOptions = ['Aguardando', 'Confirmado', 'Enviado', 'Entregue'] as const;
+const paymentStatusOptions: PaymentStatus[] = ['Pendente', 'Pago'];
+const orderStatusOptions: OrderStatus[] = ['Aguardando', 'Confirmado', 'Enviado', 'Entregue'];
 
-// Componente para renderizar a data de forma segura no cliente e evitar hydration mismatch
 const FormattedDate = ({ dateString }: { dateString: string }) => {
     const [formattedDate, setFormattedDate] = useState<string | null>(null);
 
     useEffect(() => {
-        // Formatação que só roda no cliente, após a hidratação.
         setFormattedDate(new Date(dateString).toLocaleString("pt-BR", {
             day: '2-digit', month: '2-digit', year: 'numeric',
             hour: '2-digit', minute: '2-digit'
@@ -42,16 +43,23 @@ const FormattedDate = ({ dateString }: { dateString: string }) => {
 export default function OrderManager({ initialOrders }: { initialOrders: Order[] }) {
   const [orders, setOrders] = useState<Order[]>(initialOrders);
   const [isPending, startTransition] = useTransition();
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [isAlertOpen, setIsAlertOpen] = useState(false);
+  const [alertContent, setAlertContent] = useState({ title: '', description: '', onConfirm: () => {} });
+  const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
+
+  const fetchAndSetOrders = async () => {
+    startTransition(async () => {
+      const updatedOrders = await getAllOrders();
+      setOrders(updatedOrders);
+    });
+  };
 
   const handleStatusChange = (orderId: string, type: 'paymentStatus' | 'orderStatus', value: string) => {
     startTransition(async () => {
       try {
         await updateOrderStatus({ orderId, [type]: value });
         toast({ title: "Sucesso", description: "Status do pedido atualizado." });
-        const updatedOrders = await getAllOrders();
-        setOrders(updatedOrders);
+        fetchAndSetOrders();
       } catch (error) {
         const e = error as Error;
         toast({ variant: "destructive", title: "Erro", description: e.message });
@@ -59,115 +67,199 @@ export default function OrderManager({ initialOrders }: { initialOrders: Order[]
     });
   };
 
-  const handleDeleteConfirm = () => {
-    if (!selectedOrder) return;
-    startTransition(async () => {
-        try {
-            await deleteOrder(selectedOrder.id);
+  const handleDelete = (order: Order) => {
+    setAlertContent({
+      title: 'Você tem certeza?',
+      description: `Isso excluirá permanentemente o pedido #${order.id}.`,
+      onConfirm: () => {
+        startTransition(async () => {
+          try {
+            await deleteOrder(order.id);
             toast({ title: "Sucesso!", description: "Pedido excluído com sucesso."});
-            const updatedOrders = await getAllOrders();
-            setOrders(updatedOrders);
-        } catch (error) {
+            fetchAndSetOrders();
+          } catch (error) {
             const e = error as Error;
             toast({ variant: "destructive", title: "Erro!", description: e.message });
-        } finally {
-            setIsDeleteDialogOpen(false);
-            setSelectedOrder(null);
-        }
+          } finally {
+            setIsAlertOpen(false);
+          }
+        });
+      }
     });
+    setIsAlertOpen(true);
+  };
+  
+  const handleBulkDelete = () => {
+    setAlertContent({
+      title: `Excluir ${selectedOrderIds.length} pedidos?`,
+      description: 'Esta ação não pode ser desfeita e excluirá permanentemente os pedidos selecionados.',
+      onConfirm: () => {
+        startTransition(async () => {
+          try {
+            await bulkDeleteOrders(selectedOrderIds);
+            toast({ title: "Sucesso!", description: `${selectedOrderIds.length} pedidos foram excluídos.` });
+            setSelectedOrderIds([]);
+            fetchAndSetOrders();
+          } catch (error) {
+            const e = error as Error;
+            toast({ variant: "destructive", title: "Erro!", description: e.message });
+          } finally {
+            setIsAlertOpen(false);
+          }
+        });
+      }
+    });
+    setIsAlertOpen(true);
+  };
+  
+  const handleBulkStatusUpdate = (type: 'paymentStatus' | 'orderStatus', value: PaymentStatus | OrderStatus) => {
+    setAlertContent({
+      title: 'Atualizar Status em Massa?',
+      description: `Você tem certeza que deseja alterar o ${type === 'paymentStatus' ? 'status de pagamento' : 'status do pedido'} para "${value}" em ${selectedOrderIds.length} pedidos?`,
+      onConfirm: () => {
+        startTransition(async () => {
+          try {
+            await bulkUpdateOrders(selectedOrderIds, { [type]: value });
+            toast({ title: "Sucesso!", description: 'Pedidos atualizados.' });
+            setSelectedOrderIds([]);
+            fetchAndSetOrders();
+          } catch (error) {
+            const e = error as Error;
+            toast({ variant: "destructive", title: "Erro!", description: e.message });
+          } finally {
+            setIsAlertOpen(false);
+          }
+        });
+      }
+    });
+    setIsAlertOpen(true);
   };
 
-  const getPaymentStatusVariant = (status: string) => status === 'Pago' ? 'default' : 'secondary';
+
+  const getPaymentStatusVariant = (status: string) => {
+    switch (status) {
+        case 'Pago': return 'bg-green-600/80 text-white';
+        case 'Pendente': return 'bg-amber-500/80 text-white';
+        default: return 'secondary';
+    }
+  };
+
   const getOrderStatusVariant = (status: string): "default" | "secondary" | "outline" | "destructive" | null | undefined => {
     switch (status) {
         case 'Aguardando': return 'secondary';
         case 'Confirmado': return 'outline';
         case 'Enviado': return 'default';
-        case 'Entregue': return 'default';
+        case 'Entregue': return 'default'; // Could be a different color, e.g., a success green
         default: return 'outline';
     }
   };
 
+  const isAllSelected = orders.length > 0 && selectedOrderIds.length === orders.length;
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>Histórico de Pedidos</CardTitle>
-        <CardDescription>
-          Visualize e gerencie todos os pedidos feitos na sua loja.
-        </CardDescription>
+        <div className="flex justify-between items-center">
+            <CardDescription>Visualize e gerencie todos os pedidos.</CardDescription>
+            {selectedOrderIds.length > 0 && (
+                <div className="flex items-center gap-2">
+                     <span className="text-sm text-muted-foreground">{selectedOrderIds.length} selecionado(s)</span>
+                     <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="outline" size="sm" className="h-8">Ações em Massa</Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Status do Pagamento</DropdownMenuLabel>
+                            {paymentStatusOptions.map(status => (
+                                <DropdownMenuItem key={status} onClick={() => handleBulkStatusUpdate('paymentStatus', status)}>Marcar como {status}</DropdownMenuItem>
+                            ))}
+                            <DropdownMenuSeparator />
+                             <DropdownMenuLabel>Status do Pedido</DropdownMenuLabel>
+                             {orderStatusOptions.map(status => (
+                                <DropdownMenuItem key={status} onClick={() => handleBulkStatusUpdate('orderStatus', status)}>Marcar como {status}</DropdownMenuItem>
+                            ))}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem className="text-red-500" onClick={handleBulkDelete}>Excluir Selecionados</DropdownMenuItem>
+                        </DropdownMenuContent>
+                     </DropdownMenu>
+                </div>
+            )}
+        </div>
       </CardHeader>
       <CardContent>
         {orders.length === 0 ? (
-          <div className="text-center text-muted-foreground py-8">
-            Nenhum pedido encontrado.
-          </div>
+          <div className="text-center text-muted-foreground py-8">Nenhum pedido encontrado.</div>
         ) : (
           <Accordion type="multiple" className="w-full space-y-2">
+            <div className="flex items-center gap-4 p-4 border-b">
+                 <Checkbox 
+                    id="select-all"
+                    checked={isAllSelected}
+                    onCheckedChange={(checked) => {
+                        setSelectedOrderIds(checked ? orders.map(o => o.id) : []);
+                    }}
+                 />
+                <div className="w-full grid grid-cols-2 md:grid-cols-6 items-center text-sm font-semibold text-muted-foreground gap-4">
+                    <span>Pedido</span>
+                    <span className="hidden md:block">Data</span>
+                    <span className="hidden md:block">Cliente</span>
+                    <span>Valor Total</span>
+                    <span>Pagamento</span>
+                    <span>Status</span>
+                </div>
+                <div className="w-[124px]"></div>
+            </div>
             {orders.map((order) => (
-              <AccordionItem value={order.id} key={order.id} className="border rounded-lg">
-                <div className="flex items-center gap-4 p-4">
-                   <AccordionTrigger className="flex-1 hover:no-underline p-0">
-                      <div className="w-full grid grid-cols-3 md:grid-cols-4 items-center text-sm font-normal gap-4 text-left">
+              <AccordionItem value={order.id} key={order.id} className="border-b-0">
+                 <div className="flex items-center gap-4 p-4 hover:bg-muted/50 rounded-lg">
+                    <Checkbox
+                        checked={selectedOrderIds.includes(order.id)}
+                        onCheckedChange={(checked) => {
+                            setSelectedOrderIds(
+                                checked ? [...selectedOrderIds, order.id] : selectedOrderIds.filter(id => id !== order.id)
+                            )
+                        }}
+                    />
+                    <AccordionTrigger className="flex-1 hover:no-underline p-0 w-full">
+                      <div className="w-full grid grid-cols-2 md:grid-cols-6 items-center text-sm font-normal gap-4 text-left">
                         <span className="font-mono font-semibold truncate">#{order.id}</span>
-                        <div className="hidden md:block">
-                            <FormattedDate dateString={order.createdAt} />
-                        </div>
-                        <span className="font-medium text-left">R$ {order.totalAmount.toFixed(2)}</span>
-                        <div className="hidden sm:flex gap-2 items-center justify-start">
-                             <Badge variant={getPaymentStatusVariant(order.paymentStatus)}>{order.paymentStatus}</Badge>
-                             <Badge variant={getOrderStatusVariant(order.orderStatus)}>{order.orderStatus}</Badge>
-                        </div>
+                        <div className="hidden md:block"><FormattedDate dateString={order.createdAt} /></div>
+                        <div className="hidden md:block truncate">{order.customer.name}</div>
+                        <span className="font-medium">R$ {order.totalAmount.toFixed(2)}</span>
+                        <div><Badge className={getPaymentStatusVariant(order.paymentStatus)}>{order.paymentStatus}</Badge></div>
+                        <div><Badge variant={getOrderStatusVariant(order.orderStatus)}>{order.orderStatus}</Badge></div>
                       </div>
-                   </AccordionTrigger>
+                    </AccordionTrigger>
                     
-                    <div className="flex gap-2 items-center justify-start">
+                    <div className="flex gap-2 items-center justify-start" onClick={(e) => e.stopPropagation()}>
                          <Select
                             value={order.paymentStatus}
-                            onValueChange={(value) => handleStatusChange(order.id, 'paymentStatus', value)}
+                            onValueChange={(value) => handleStatusChange(order.id, 'paymentStatus', value as PaymentStatus)}
                             disabled={isPending || order.paymentStatus === 'Pago'}
                             >
-                            <SelectTrigger className="h-8 w-[110px] gap-1 text-xs font-semibold">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {paymentStatusOptions.map(status => (
-                                <SelectItem key={status} value={status}>{status}</SelectItem>
-                                ))}
-                            </SelectContent>
+                            <SelectTrigger className="h-8 w-auto min-w-[110px] gap-1 text-xs"><SelectValue /></SelectTrigger>
+                            <SelectContent><_c>
+                                {paymentStatusOptions.map(status => <SelectItem key={status} value={status}>{status}</SelectItem>)}
+                            </_c></SelectContent>
                         </Select>
                         <Select
                             value={order.orderStatus}
-                            onValueChange={(value) => handleStatusChange(order.id, 'orderStatus', value)}
+                            onValueChange={(value) => handleStatusChange(order.id, 'orderStatus', value as OrderStatus)}
                             disabled={isPending}
                             >
-                            <SelectTrigger className="h-8 w-[110px] gap-1 text-xs">
-                                <SelectValue/>
-                            </SelectTrigger>
+                            <SelectTrigger className="h-8 w-auto min-w-[110px] gap-1 text-xs"><SelectValue/></SelectTrigger>
                             <SelectContent>
-                                {orderStatusOptions.map(status => (
-                                <SelectItem key={status} value={status}>{status}</SelectItem>
-                                ))}
+                                {orderStatusOptions.map(status => <SelectItem key={status} value={status}>{status}</SelectItem>)}
                             </SelectContent>
                         </Select>
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" className="h-8 w-8 p-0">
-                                <span className="sr-only">Abrir menu</span>
-                                <MoreHorizontal className="h-4 w-4" />
-                                </Button>
+                                <Button variant="ghost" className="h-8 w-8 p-0"><MoreHorizontal className="h-4 w-4" /></Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                                 <DropdownMenuLabel>Ações</DropdownMenuLabel>
-                                <DropdownMenuItem
-                                    onClick={() => {
-                                    setSelectedOrder(order);
-                                    setIsDeleteDialogOpen(true);
-                                    }}
-                                    className="text-red-600"
-                                >
-                                    Excluir Pedido
-                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleDelete(order)} className="text-red-500"><Trash2 className="mr-2 h-4 w-4"/>Excluir</DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
                     </div>
@@ -192,19 +284,10 @@ export default function OrderManager({ initialOrders }: { initialOrders: Order[]
                       <div className="space-y-3 max-h-48 overflow-y-auto">
                         {order.items.map((item, index) => (
                           <div key={`${item.id}-${index}`} className="flex items-center gap-3 text-left">
-                            <Image
-                              src={item.imageUrl}
-                              alt={item.title}
-                              width={40}
-                              height={40}
-                              className="rounded-sm object-cover"
-                              sizes="40px"
-                            />
+                            <Image src={item.imageUrl} alt={item.title} width={40} height={40} className="rounded-sm object-cover" sizes="40px"/>
                             <div>
                               <p className="text-sm font-semibold">{item.title}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {item.quantity} x R$ {item.price.toFixed(2)}
-                              </p>
+                              <p className="text-xs text-muted-foreground">{item.quantity} x R$ {item.price.toFixed(2)}</p>
                             </div>
                           </div>
                         ))}
@@ -217,18 +300,16 @@ export default function OrderManager({ initialOrders }: { initialOrders: Order[]
           </Accordion>
         )}
       </CardContent>
-       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+       <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Essa ação não pode ser desfeita. Isso excluirá permanentemente o pedido <span className="font-bold">#{selectedOrder?.id}</span>.
-            </AlertDialogDescription>
+            <AlertDialogTitle>{alertContent.title}</AlertDialogTitle>
+            <AlertDialogDescription>{alertContent.description}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteConfirm} disabled={isPending} className="bg-destructive hover:bg-destructive/90">
-              {isPending ? "Excluindo..." : "Excluir"}
+            <AlertDialogAction onClick={alertContent.onConfirm} disabled={isPending} className="bg-destructive hover:bg-destructive/90">
+              {isPending ? "Processando..." : "Confirmar"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

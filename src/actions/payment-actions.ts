@@ -232,4 +232,53 @@ export async function deleteOrder(orderId: string) {
       console.error("Error deleting order: ", e);
       throw new Error('Falha ao excluir o pedido.');
     }
-  }
+}
+
+export async function bulkUpdateOrders(
+    orderIds: string[],
+    updates: {
+      paymentStatus?: 'Pendente' | 'Pago';
+      orderStatus?: 'Aguardando' | 'Confirmado' | 'Enviado' | 'Entregue';
+    }
+  ) {
+    if (!orderIds || orderIds.length === 0) {
+      throw new Error('Nenhum ID de pedido fornecido.');
+    }
+    if (Object.keys(updates).length === 0) {
+      throw new Error('Nenhuma atualização fornecida.');
+    }
+  
+    const batch = writeBatch(db);
+    orderIds.forEach(orderId => {
+      const orderRef = doc(db, 'orders', orderId);
+      batch.update(orderRef, updates);
+    });
+  
+    try {
+      await batch.commit();
+      return { success: true, message: 'Pedidos atualizados em massa com sucesso.' };
+    } catch (e) {
+      console.error("Error updating orders in batch: ", e);
+      throw new Error('Falha ao atualizar os pedidos em massa.');
+    }
+}
+
+export async function bulkDeleteOrders(orderIds: string[]) {
+    if (!orderIds || orderIds.length === 0) {
+      throw new Error('Nenhum ID de pedido fornecido.');
+    }
+  
+    const batch = writeBatch(db);
+    orderIds.forEach(orderId => {
+      const orderRef = doc(db, 'orders', orderId);
+      batch.delete(orderRef);
+    });
+  
+    try {
+      await batch.commit();
+      return { success: true, message: 'Pedidos excluídos em massa com sucesso.' };
+    } catch (e) {
+      console.error("Error deleting orders in batch: ", e);
+      throw new Error('Falha ao excluir os pedidos em massa.');
+    }
+}

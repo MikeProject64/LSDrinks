@@ -1,15 +1,22 @@
 "use client";
 
-import { withAuth, useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/context/AuthContext';
 import { auth } from '@/lib/firebase';
 import { signOut } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import AdminLayout from '@/components/AdminLayout';
 
-function Dashboard() {
+function DashboardPage() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push('/admin/login');
+    }
+  }, [user, loading, router]);
 
   const handleLogout = async () => {
     try {
@@ -19,6 +26,14 @@ function Dashboard() {
       console.error("Error signing out: ", error);
     }
   };
+
+  if (loading || !user) {
+    return (
+        <div className="flex items-center justify-center min-h-screen">
+            <div>Carregando...</div>
+        </div>
+    );
+  }
 
   return (
     <AdminLayout>
@@ -30,7 +45,7 @@ function Dashboard() {
       >
         <div className="flex flex-col items-center gap-1 text-center">
           <h3 className="text-2xl font-bold tracking-tight">
-            Bem-vindo(a), {user?.email}!
+            Bem-vindo(a), {user.email}!
           </h3>
           <p className="text-sm text-muted-foreground">
             Você pode começar a gerenciar seus produtos e categorias.
@@ -42,4 +57,4 @@ function Dashboard() {
   );
 }
 
-export default withAuth(Dashboard);
+export default DashboardPage;
