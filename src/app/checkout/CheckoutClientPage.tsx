@@ -19,6 +19,7 @@ import { getPaymentSettings, PaymentSettings, saveOrder } from '@/actions/paymen
 import { createPaymentIntent } from '@/actions/create-payment-intent';
 import { toast } from '@/hooks/use-toast';
 import { ShieldCheck } from 'lucide-react';
+import PaymentOnDeliveryModal from './PaymentOnDeliveryModal'; // Importar o novo modal
 
 interface CheckoutClientPageProps {}
 
@@ -94,6 +95,7 @@ const StripeCheckoutForm = ({ onFinalizing, onSuccess, deliveryInfo, totalAmount
                     items,
                     totalAmount,
                     paymentMethod: 'stripe',
+                    paymentDetails: 'Pago com Cartão',
                     orderId,
                     stripePaymentIntentId: paymentIntent.id,
                     ...deliveryInfo
@@ -126,7 +128,7 @@ const StripeCheckoutForm = ({ onFinalizing, onSuccess, deliveryInfo, totalAmount
             
             <div className="space-y-4">
                 <Button type="submit" disabled={!stripe || isLoading || items.length === 0} className="w-full" size="lg">
-                    {isLoading ? 'Processando...' : `Pagar R$ ${totalAmount.toFixed(2)}`}
+                    {isLoading ? 'Processando...' : `Pagar R$ ${totalWithFee.toFixed(2)}`}
                 </Button>
                 <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
                     <ShieldCheck className="w-4 h-4 text-green-500" />
@@ -151,6 +153,8 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [stripeOrderId, setStripeOrderId] = useState<string | null>(null);
   const [stripeTotal, setStripeTotal] = useState<number>(0);
+
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const deliveryForm = useForm<DeliveryFormValues>({
     resolver: zodResolver(deliveryFormSchema),
@@ -215,9 +219,11 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
     setStep('payment');
   }
 
-  const handlePaymentOnDelivery = async () => {
+  const handlePaymentOnDelivery = async (details: { method: 'PIX' | 'Dinheiro', changeFor?: number }) => {
     if (!deliveryInfo) return;
     setStep('finalizing');
+    setIsModalOpen(false);
+
     try {
       function generateOrderId() {
         const letter = String.fromCharCode(65 + Math.floor(Math.random() * 26));
@@ -226,10 +232,15 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
       }
       const orderId = generateOrderId();
       
+      const paymentDetails = details.method === 'Dinheiro'
+        ? `Dinheiro (Troco para R$ ${details.changeFor?.toFixed(2)})`
+        : 'PIX';
+
       const result = await saveOrder({
         items,
         totalAmount: totalWithFee,
         paymentMethod: 'on_delivery',
+        paymentDetails,
         orderId,
         ...deliveryInfo
       });
@@ -353,9 +364,9 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
                             </button>
                         )}
                         {paymentSettings?.isPaymentOnDeliveryEnabled && (
-                            <button className="w-full p-4 border rounded-lg text-left hover:bg-muted/50 transition-colors" onClick={handlePaymentOnDelivery}>
+                            <button className="w-full p-4 border rounded-lg text-left hover:bg-muted/50 transition-colors" onClick={() => setIsModalOpen(true)}>
                                 <div className="flex items-center gap-4">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-10 h-10 text-primary shrink-0"><path d="M2 6h20M7 12h10M9 18h6" /><path d="M2 6v12c0 1.1.9 2 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2z" /></svg>
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-10 h-10 text-primary shrink-0"><circle cx="12" cy="12" r="10"/><path d="M12 6v12"/><path d="M16 10H8"/><path d="M16 14H8"/></svg>
                                     <div>
                                         <span className="font-semibold text-lg">Pagar na Entrega</span>
                                         <p className="text-sm text-muted-foreground">Pague com PIX ou dinheiro ao receber.</p>
@@ -382,12 +393,25 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
     }
   }
 
+  const shouldShowTitle = step !== 'finalizing' && !selectedPayment;
+
   return (
-    <div className="container mx-auto px-4 pt-8 pb-8 max-w-2xl space-y-8">
-      <h1 className="text-3xl font-bold text-center">{stepTitles[step]}</h1>
-      <div className="border rounded-lg p-6 sm:p-8">
-        {renderContent()}
+    <>
+      <div className="container mx-auto px-4 pt-8 pb-24 max-w-2xl space-y-8">
+        {shouldShowTitle && <h1 className="text-3xl font-bold text-center">{stepTitles[step]}</h1>}
+        <div className="border rounded-lg p-6 sm:p-8">
+          {renderContent()}
+        </div>
       </div>
-    </div>
+      {paymentSettings?.pixKey && (
+          <PaymentOnDeliveryModal
+              isOpen={isModalOpen}
+              onClose={() => setIsModalOpen(false)}
+              onSubmit={handlePaymentOnDelivery}
+              totalAmount={totalWithFee}
+              pixKey={paymentSettings.pixKey}
+          />
+      )}
+    </>
   );
 }

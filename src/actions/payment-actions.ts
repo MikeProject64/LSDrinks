@@ -18,6 +18,7 @@ const paymentSettingsSchema = z.object({
     secretKey: z.string().optional(),
   }).optional(),
   isPaymentOnDeliveryEnabled: z.boolean().default(false),
+  pixKey: z.string().optional(), // Nova chave PIX
 });
 
 export type PaymentSettings = z.infer<typeof paymentSettingsSchema>;
@@ -67,11 +68,12 @@ const checkoutSchema = z.object({
   items: z.array(z.any()),
   totalAmount: z.number(),
   paymentMethod: z.enum(['on_delivery', 'stripe']),
+  paymentDetails: z.string(), // 'PIX', 'Dinheiro (Troco para R$ X)', 'Pago com Cartão'
   customerName: z.string(),
   customerPhone: z.string(),
   customerAddress: z.string(),
   orderId: z.string(),
-  stripePaymentIntentId: z.string().optional(), // Opcional, apenas para Stripe
+  stripePaymentIntentId: z.string().optional(),
 });
 
 function generateOrderId() {
@@ -87,7 +89,7 @@ export async function saveOrder(data: z.infer<typeof checkoutSchema>) {
     throw new Error('Dados de checkout inválidos.');
   }
 
-  const { items, totalAmount, paymentMethod, customerName, customerPhone, customerAddress, orderId, stripePaymentIntentId } = validation.data;
+  const { items, totalAmount, paymentMethod, paymentDetails, customerName, customerPhone, customerAddress, orderId, stripePaymentIntentId } = validation.data;
 
   const paymentSettings = await getPaymentSettings();
   
@@ -106,7 +108,7 @@ export async function saveOrder(data: z.infer<typeof checkoutSchema>) {
     },
     createdAt: serverTimestamp(),
     status: paymentMethod === 'stripe' ? 'Pago' : 'Pendente',
-    paymentMethod: paymentMethod === 'stripe' ? 'Cartão de Crédito' : 'Na Entrega',
+    paymentMethod: paymentDetails,
     ...(stripePaymentIntentId && { stripePaymentIntentId }),
   };
 
