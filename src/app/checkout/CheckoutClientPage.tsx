@@ -139,21 +139,19 @@ const StripeForm = ({ onSuccess, deliveryInfo, totalAmount, orderId }: {
 
     return (
         <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="border-t border-dashed pt-6">
-                <h3 className="text-lg font-semibold mb-4">Dados do Cartão</h3>
-                <div>
-                    <PaymentElement />
-                </div>
-                {errorMessage && <div className="text-red-500 text-sm font-medium mt-4">{errorMessage}</div>}
-                
-                <div className="space-y-4 mt-6">
-                    <Button type="submit" disabled={!stripe || isLoading || items.length === 0} className="w-full" size="lg">
-                        {isLoading ? 'Processando...' : `Pagar R$ ${totalAmount.toFixed(2)}`}
-                    </Button>
-                    <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
-                        <ShieldCheck className="w-4 h-4 text-green-500" />
-                        <span>Pagamento seguro via Stripe. Compra 100% garantida.</span>
-                    </div>
+            <h3 className="text-lg font-semibold">Dados do Cartão</h3>
+            <div>
+                <PaymentElement />
+            </div>
+            {errorMessage && <div className="text-red-500 text-sm font-medium mt-4">{errorMessage}</div>}
+            
+            <div className="space-y-4 mt-6">
+                <Button type="submit" disabled={!stripe || isLoading || items.length === 0} className="w-full" size="lg">
+                    {isLoading ? 'Processando...' : `Pagar R$ ${totalAmount.toFixed(2)}`}
+                </Button>
+                <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                    <ShieldCheck className="w-4 h-4 text-green-500" />
+                    <span>Pagamento seguro via Stripe. Compra 100% garantida.</span>
                 </div>
             </div>
         </form>
@@ -185,16 +183,19 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
   const appearance: Appearance = {
     theme: 'night',
     variables: {
-      colorPrimary: '#008080',
-      colorBackground: '#222222',
-      colorText: '#ffffff',
+      colorPrimary: 'hsl(25 95% 53%)', // Laranja do tema
+      colorBackground: '#090e18', // Cor do card
+      colorText: '#f7f9fa',
       colorDanger: '#e53e3e',
       fontFamily: 'Inter, sans-serif',
       spacingUnit: '4px',
       borderRadius: '0.5rem',
     },
     rules: {
-      '.Input': { backgroundColor: '#333333', border: '1px solid #444444' }
+      '.Input': { 
+        backgroundColor: '#1e293b', // Muted background
+        border: '1px solid hsl(var(--border))' 
+      }
     }
   };
 
@@ -356,18 +357,21 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
 
             if (selectedPayment === 'stripe') {
                 return (
-                    <div>
-                        {clientSecret && stripePromise && stripeOrderId ? (
-                            <Elements stripe={stripePromise} options={{ clientSecret, appearance }}>
-                                <StripeForm
-                                    deliveryInfo={deliveryInfo}
-                                    onSuccess={handleStripeSuccess}
-                                    totalAmount={stripeTotal}
-                                    orderId={stripeOrderId}
-                                />
-                            </Elements>
-                        ) : <p className="text-center">Carregando formulário de pagamento...</p>}
-                        <Button variant="outline" onClick={() => setSelectedPayment(null)} className="w-full sm:w-auto mt-6">
+                    <div className="space-y-8">
+                        <CartSummary />
+                        <div className="border-t border-dashed pt-6">
+                            {clientSecret && stripePromise && stripeOrderId ? (
+                                <Elements stripe={stripePromise} options={{ clientSecret, appearance }}>
+                                    <StripeForm
+                                        deliveryInfo={deliveryInfo}
+                                        onSuccess={handleStripeSuccess}
+                                        totalAmount={stripeTotal}
+                                        orderId={stripeOrderId}
+                                    />
+                                </Elements>
+                            ) : <p className="text-center">Carregando formulário de pagamento...</p>}
+                        </div>
+                        <Button variant="link" onClick={() => setSelectedPayment(null)} className="w-full sm:w-auto">
                             Voltar para métodos de pagamento
                         </Button>
                     </div>
