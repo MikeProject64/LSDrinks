@@ -88,7 +88,6 @@ const StripeForm = ({ onFinalizing, onSuccess, deliveryInfo, totalAmount, orderI
         onFinalizing();
         setErrorMessage(null);
         
-        // 1. Validate form elements
         const { error: submitError } = await elements.submit();
         if (submitError) {
             setErrorMessage(submitError.message || "Ocorreu um erro ao submeter o formulário.");
@@ -96,7 +95,6 @@ const StripeForm = ({ onFinalizing, onSuccess, deliveryInfo, totalAmount, orderI
             return;
         }
 
-        // 2. Confirm the payment
         const { error: confirmError, paymentIntent } = await stripe.confirmPayment({
             elements,
             redirect: 'if_required'
@@ -109,7 +107,6 @@ const StripeForm = ({ onFinalizing, onSuccess, deliveryInfo, totalAmount, orderI
             return;
         }
 
-        // 3. If payment is successful, save the order
         if (paymentIntent?.status === 'succeeded') {
             try {
                 const result = await saveOrder({
@@ -117,7 +114,7 @@ const StripeForm = ({ onFinalizing, onSuccess, deliveryInfo, totalAmount, orderI
                     totalAmount,
                     paymentMethod: 'stripe',
                     paymentDetails: 'Pago com Cartão',
-                    orderId, // Use the pre-generated orderId
+                    orderId,
                     stripePaymentIntentId: paymentIntent.id,
                     ...deliveryInfo
                 });
@@ -223,24 +220,6 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
     loadInitialData();
   }, [deliveryForm]);
 
-  const prepareStripePayment = () => {
-    if (items.length > 0) {
-        setIsLoading(true);
-        createPaymentIntent({ items })
-            .then(intent => {
-                setClientSecret(intent.clientSecret);
-                setStripeTotal(intent.totalAmount);
-                setStripeOrderId(intent.orderId); // Store the orderId from the intent
-                setSelectedPayment('stripe');
-            })
-            .catch(error => {
-                toast({ title: "Erro de Pagamento", description: error.message, variant: "destructive" });
-                setSelectedPayment(null);
-            })
-            .finally(() => setIsLoading(false));
-    }
-  }
-
   const onDeliverySubmit = (data: DeliveryFormValues) => {
     setDeliveryInfo(data);
     saveDeliveryInfoLocally(data);
@@ -275,7 +254,7 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
 
       if (result.success && result.orderId) {
         saveOrderIdLocally(result.orderId);
-        saveDeliveryInfoLocally(deliveryInfo);
+        if(deliveryInfo) saveDeliveryInfoLocally(deliveryInfo);
         toast({ title: 'Sucesso!', description: 'Seu pedido foi realizado e será pago na entrega.' });
         clearCart();
         router.push('/orders');
@@ -298,6 +277,21 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
     clearCart();
     router.push('/orders');
   };
+
+  useEffect(() => {
+    // Pré-carrega a intenção de pagamento quando o usuário chega na etapa de pagamento
+    if (step === 'payment' && items.length > 0 && !clientSecret && paymentSettings?.isLive) {
+      createPaymentIntent({ items })
+        .then(intent => {
+          setClientSecret(intent.clientSecret);
+          setStripeTotal(intent.totalAmount);
+          setStripeOrderId(intent.orderId);
+        })
+        .catch(error => {
+          toast({ title: "Erro de Pagamento", description: `Não foi possível iniciar o pagamento: ${error.message}`, variant: "destructive" });
+        });
+    }
+  }, [step, items, clientSecret, paymentSettings]);
 
   if (items.length === 0 && step !== 'finalizing') {
     return (
@@ -385,12 +379,12 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
               <div className="space-y-8">
                     <div className="space-y-4">
                         {paymentSettings?.isLive && (
-                           <button className="w-full p-4 border rounded-lg text-left hover:bg-muted/50 transition-colors" onClick={prepareStripePayment}>
+                           <button className="w-full p-4 border rounded-lg text-left hover:bg-muted/50 transition-colors" onClick={() => setSelectedPayment('stripe')} disabled={!clientSecret}>
                                 <div className="flex items-center gap-4">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-10 h-10 text-primary shrink-0"><rect width="20" height="14" x="2" y="5" rx="2" /><line x1="2" x2="22" y1="10" y2="10" /></svg>
                                     <div>
                                         <span className="font-semibold text-lg">Cartão de Crédito</span>
-                                        <p className="text-sm text-muted-foreground">Pagamento seguro via Stripe.</p>
+                                        <p className="text-sm text-muted-foreground">{!clientSecret ? 'Inicializando...' : 'Pagamento seguro via Stripe.'}</p>
                                     </div>
                                 </div>
                             </button>
