@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { BookOpen, ShoppingCart, ScrollText } from 'lucide-react';
 import { useCart } from '@/context/CartContext';
 import { Badge } from './ui/badge';
+import { useEffect, useState } from 'react';
 
 const navItems = [
   { href: '/', label: 'Cardápio', icon: BookOpen },
@@ -15,6 +16,21 @@ const navItems = [
 const MobileNav = () => {
   const pathname = usePathname();
   const { cartCount } = useCart();
+  const [orderCount, setOrderCount] = useState(0);
+
+  useEffect(() => {
+    // This runs only on the client, so window and localStorage are available.
+    const orderIdsString = localStorage.getItem('myOrderIds');
+    if (orderIdsString) {
+      try {
+        const orderIds = JSON.parse(orderIdsString);
+        setOrderCount(orderIds.length);
+      } catch (e) {
+        setOrderCount(0);
+      }
+    }
+  }, []);
+
 
   return (
     <nav className="fixed bottom-0 left-0 w-full h-16 bg-card border-t border-border z-50 flex md:hidden">
@@ -40,6 +56,14 @@ const MobileNav = () => {
                 {cartCount}
               </Badge>
             )}
+             {item.href === '/orders' && orderCount > 0 && (
+              <Badge
+                variant="default"
+                className="absolute top-1 right-[calc(50%-2rem)] h-5 w-5 flex items-center justify-center p-1 text-xs"
+              >
+                {orderCount}
+              </Badge>
+            )}
             <span
               className={`text-xs font-medium transition-colors group-hover:text-primary ${
                 isActive ? 'text-primary' : 'text-muted-foreground'
@@ -54,4 +78,4 @@ const MobileNav = () => {
   );
 };
 
-export default MobileNav; 
+export default MobileNav;
