@@ -1,3 +1,4 @@
+
 "use client";
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
@@ -17,6 +18,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Se o objeto 'auth' não foi inicializado (devido a chaves ausentes),
+    // não tente configurar o listener de autenticação.
+    if (!auth) {
+      setLoading(false);
+      return;
+    }
+
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setUser(user);
       setLoading(false);
