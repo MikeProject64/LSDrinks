@@ -200,15 +200,20 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
   const appearance: Appearance = {
     theme: 'night',
     variables: {
-      colorPrimary: 'hsl(25 95% 53%)',
-      colorBackground: '#090e18',
-      colorText: '#f7f9fa',
-      colorDanger: '#e53e3e',
-      fontFamily: 'Inter, sans-serif',
-      spacingUnit: '4px',
-      borderRadius: '0.5rem',
-    },
-    rules: { '.Input': { backgroundColor: '#1e293b', border: '1px solid hsl(var(--border))' } }
+        colorPrimary: 'hsl(var(--primary))',
+        colorBackground: 'hsl(var(--card))',
+        colorText: 'hsl(var(--foreground))',
+        colorDanger: 'hsl(var(--destructive))',
+        fontFamily: 'Inter, sans-serif',
+        spacingUnit: '4px',
+        borderRadius: 'var(--radius)',
+      },
+      rules: {
+        '.Input': {
+          backgroundColor: 'hsl(var(--background))',
+          border: '1px solid hsl(var(--border))'
+        }
+      }
   };
 
   useEffect(() => {
@@ -236,7 +241,7 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
     loadInitialData();
   }, [deliveryForm]);
   
-  // Effect for PIX QR Code
+  // Effect for PIX Payload
   useEffect(() => {
     async function generatePayload() {
         if (selectedPayment === 'on_delivery' && paymentSettings?.pixKey && totalWithFee > 0) {
@@ -249,13 +254,15 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
     generatePayload();
   }, [selectedPayment, paymentSettings?.pixKey, totalWithFee]);
 
+  // Effect for PIX QR Code generation.
+  // It now also depends on onDeliveryMethod to redraw the canvas when the user switches back to the PIX tab.
   useEffect(() => {
-    if (pixPayload && canvasRef.current) {
+    if (pixPayload && canvasRef.current && onDeliveryMethod === 'pix') {
         QRCode.toCanvas(canvasRef.current, pixPayload, { width: 220, margin: 2, errorCorrectionLevel: 'H' }, (error) => {
             if (error) console.error("Failed to generate QR Code", error);
         });
     }
-  }, [pixPayload]);
+  }, [pixPayload, onDeliveryMethod]);
 
   useEffect(() => {
     const numericCashAmount = parseFloat(cashAmount);
