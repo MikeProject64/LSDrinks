@@ -10,6 +10,7 @@ import { Toaster } from './ui/toaster';
 export default function LayoutManager({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isAdminPage = pathname.startsWith('/admin');
+  const isCheckoutPage = pathname === '/checkout';
 
   if (isAdminPage) {
     // Para as páginas de admin, renderizamos apenas o conteúdo,
@@ -21,14 +22,14 @@ export default function LayoutManager({ children }: { children: React.ReactNode 
   return (
     <CartProvider>
       <div className="min-h-screen flex flex-col">
-        <Header />
+        {!isCheckoutPage && <Header />}
         <main className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-8 md:pb-8 pb-24">
           {children}
         </main>
         <Footer />
       </div>
       <Toaster />
-      <MobileNav />
+      {!isCheckoutPage && <MobileNav />}
     </CartProvider>
   );
 }

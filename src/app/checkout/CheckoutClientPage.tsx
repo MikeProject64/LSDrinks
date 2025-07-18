@@ -238,7 +238,7 @@ export default function CheckoutClientPage({ stripePromise }: CheckoutClientPage
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-2xl space-y-8">
+    <div className="container mx-auto px-4 pt-4 pb-8 max-w-2xl space-y-8">
       <h1 className="text-3xl font-bold text-center">{stepTitles[step]}</h1>
       <div className="border rounded-lg p-6 sm:p-8">
         {renderContent()}
