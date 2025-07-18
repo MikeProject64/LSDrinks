@@ -23,13 +23,14 @@ export default function LayoutManager({ children }: { children: React.ReactNode 
     <CartProvider>
       <div className="min-h-screen flex flex-col">
         {!isCheckoutPage && <Header />}
-        <main className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-8 md:pb-8 pb-24">
+        <main className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-24 md:pb-8">
           {children}
         </main>
         <Footer />
       </div>
       <Toaster />
-      {!isCheckoutPage && <MobileNav />}
+      {/* O MobileNav agora é sempre exibido em páginas não-admin */}
+      <MobileNav />
     </CartProvider>
   );
 }
