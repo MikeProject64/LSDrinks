@@ -2,26 +2,39 @@
 
 import { z } from 'zod';
 import { db } from '@/lib/firebase';
-import { collection, addDoc, getDocs, serverTimestamp, query, orderBy, Timestamp, doc, updateDoc, deleteDoc, getDoc, where } from 'firebase/firestore';
+import { collection, addDoc, getDocs, serverTimestamp, query, orderBy, Timestamp, doc, updateDoc, deleteDoc, getDoc, where, writeBatch, runTransaction } from 'firebase/firestore';
 
 const highlightSchema = z.object({
   title: z.string().min(3, "O título deve ter pelo menos 3 caracteres."),
   description: z.string().min(10, "A descrição deve ter pelo menos 10 caracteres."),
   imageUrl: z.string().url("A URL da imagem é inválida."),
-  link: z.string().url("O link (URL) é inválido."),
+  link: z.string().url("O link (URL) é inválido.").optional().or(z.literal('')),
   isActive: z.boolean().default(false),
+  position: z.number().default(0),
 });
 
-export async function addHighlight(data: z.infer<typeof highlightSchema>) {
-  const validation = highlightSchema.safeParse(data);
+async function getNextPosition() {
+    const q = query(collection(db, "highlights"), orderBy("position", "desc"));
+    const querySnapshot = await getDocs(q);
+    if (querySnapshot.empty) {
+        return 0;
+    }
+    const lastHighlight = querySnapshot.docs[0].data();
+    return (lastHighlight.position || 0) + 1;
+}
+
+export async function addHighlight(data: Omit<z.infer<typeof highlightSchema>, 'position'>) {
+  const validation = highlightSchema.omit({position: true}).safeParse(data);
 
   if (!validation.success) {
     throw new Error('Dados do destaque inválidos.');
   }
 
   try {
+    const nextPosition = await getNextPosition();
     const docRef = await addDoc(collection(db, "highlights"), {
       ...validation.data,
+      position: nextPosition,
       createdAt: serverTimestamp(),
     });
     return { id: docRef.id, ...validation.data };
@@ -33,7 +46,7 @@ export async function addHighlight(data: z.infer<typeof highlightSchema>) {
 
 export async function getHighlights() {
     try {
-      const q = query(collection(db, "highlights"), orderBy("createdAt", "desc"));
+      const q = query(collection(db, "highlights"), orderBy("position", "asc"));
       const querySnapshot = await getDocs(q);
       
       const highlights = querySnapshot.docs.map(doc => {
@@ -45,6 +58,7 @@ export async function getHighlights() {
             imageUrl: data.imageUrl || '',
             link: data.link || '',
             isActive: data.isActive || false,
+            position: data.position ?? 0,
             createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
         };
         return serializableData;
@@ -62,7 +76,7 @@ export async function getActiveHighlights() {
       const q = query(
         collection(db, "highlights"), 
         where("isActive", "==", true),
-        orderBy("createdAt", "desc")
+        orderBy("position", "asc")
       );
       const querySnapshot = await getDocs(q);
       
@@ -75,6 +89,7 @@ export async function getActiveHighlights() {
             imageUrl: data.imageUrl || '',
             link: data.link || '',
             isActive: data.isActive,
+            position: data.position ?? 0,
             createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
         };
       });
@@ -82,7 +97,6 @@ export async function getActiveHighlights() {
       return highlights;
     } catch (e) {
         console.error("Error fetching active highlights: ", e);
-        // Retorna um array vazio em caso de erro para não quebrar o frontend
         return [];
     }
 }
@@ -111,9 +125,11 @@ export async function getHighlightById(id: string) {
 export async function updateHighlight(id: string, data: Partial<z.infer<typeof highlightSchema>>) {
     if (!id) throw new Error('ID do destaque é obrigatório.');
     
-    // N.B: Using .partial() allows updating fields without validating all of them
     const validation = highlightSchema.partial().safeParse(data);
-    if (!validation.success) throw new Error('Dados do destaque inválidos.');
+    if (!validation.success) {
+      console.log(validation.error.flatten())
+      throw new Error('Dados do destaque inválidos.');
+    }
 
     try {
         const highlightRef = doc(db, 'highlights', id);
@@ -136,3 +152,30 @@ export async function deleteHighlight(id: string) {
         throw new Error('Falha ao excluir o destaque.');
     }
 } 
+
+export async function swapHighlightPositions(highlightId1: string, highlightId2: string) {
+  try {
+    await runTransaction(db, async (transaction) => {
+      const highlight1Ref = doc(db, 'highlights', highlightId1);
+      const highlight2Ref = doc(db, 'highlights', highlightId2);
+
+      const highlight1Doc = await transaction.get(highlight1Ref);
+      const highlight2Doc = await transaction.get(highlight2Ref);
+
+      if (!highlight1Doc.exists() || !highlight2Doc.exists()) {
+        throw new Error("Um ou ambos os destaques não foram encontrados.");
+      }
+
+      const position1 = highlight1Doc.data().position;
+      const position2 = highlight2Doc.data().position;
+
+      transaction.update(highlight1Ref, { position: position2 });
+      transaction.update(highlight2Ref, { position: position1 });
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error swapping positions:", error);
+    throw new Error("Falha ao trocar as posições dos destaques.");
+  }
+}

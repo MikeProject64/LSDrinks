@@ -28,10 +28,9 @@ import Image from "next/image";
 const highlightSchema = z.object({
   title: z.string().min(3, "O título deve ter pelo menos 3 caracteres."),
   description: z.string().min(10, "A descrição deve ter pelo menos 10 caracteres."),
-  link: z.string().url("O link (URL) é inválido."),
+  link: z.string().url("O link (URL) é inválido.").optional().or(z.literal('')),
   isActive: z.boolean().default(false),
   imageUrl: z.string().optional(),
-  imageFile: z.instanceof(File).optional(),
 });
 
 type HighlightFormValues = z.infer<typeof highlightSchema>;
@@ -46,6 +45,12 @@ export default function EditHighlightPage({ params }: { params: { id: string } }
 
   const form = useForm<HighlightFormValues>({
     resolver: zodResolver(highlightSchema),
+    defaultValues: {
+        title: '',
+        description: '',
+        link: '',
+        isActive: false,
+    }
   });
 
   useEffect(() => {
@@ -53,7 +58,13 @@ export default function EditHighlightPage({ params }: { params: { id: string } }
 
     getHighlightById(highlightId).then(data => {
         if (data) {
-            form.reset(data);
+            form.reset({
+                title: data.title,
+                description: data.description,
+                link: data.link || '',
+                isActive: data.isActive,
+                imageUrl: data.imageUrl,
+            });
             if (data.imageUrl) {
                 setCurrentImageUrl(data.imageUrl as string);
             }
@@ -75,7 +86,10 @@ export default function EditHighlightPage({ params }: { params: { id: string } }
         finalImageUrl = await getDownloadURL(storageRef);
       }
       
-      const dataToSave = { ...data, imageUrl: finalImageUrl || undefined };
+      const dataToSave = { ...data, imageUrl: finalImageUrl };
+      if (!dataToSave.imageUrl) {
+        throw new Error("A imagem é obrigatória.");
+      }
 
       await updateHighlight(highlightId, dataToSave);
       
@@ -104,7 +118,45 @@ export default function EditHighlightPage({ params }: { params: { id: string } }
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)}>
             <CardContent className="space-y-4">
-              {/* Other Fields: title, description, link */}
+               <FormField
+                control={form.control}
+                name="title"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Título</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Ex: Promoção de Verão" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Descrição</FormLabel>
+                    <FormControl>
+                      <Textarea placeholder="Descontos imperdíveis em todas as bebidas!" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="link"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Link (URL)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="https://seusite.com/promocao (Opcional)" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <FormField
                 control={form.control}
                 name="isActive"
@@ -124,13 +176,56 @@ export default function EditHighlightPage({ params }: { params: { id: string } }
                 )}
               />
               {currentImageUrl && (
-                 <Image src={currentImageUrl} alt="Imagem atual" width={100} height={100} className="rounded-md" />
+                <div>
+                  <FormLabel>Imagem Atual</FormLabel>
+                  <div className="mt-2">
+                    <Image src={currentImageUrl} alt="Imagem atual" width={100} height={100} className="rounded-md object-cover" />
+                  </div>
+                </div>
               )}
-              {/* Image Fields */}
+               <FormField
+                control={form.control}
+                name="imageUrl"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nova URL da Imagem</FormLabel>
+                    <FormControl>
+                      <Input 
+                        placeholder="https://exemplo.com/imagem.jpg" 
+                        {...field}
+                        onChange={(e) => {
+                            field.onChange(e);
+                            setCurrentImageUrl(e.target.value); // Preview
+                        }}
+                       />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="text-center my-2 text-sm text-muted-foreground">OU</div>
+              <FormItem>
+                <FormLabel>Substituir Imagem</FormLabel>
+                <FormControl>
+                  <Input 
+                    type="file" 
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        setImageFile(file);
+                        const previewUrl = URL.createObjectURL(file);
+                        setCurrentImageUrl(previewUrl);
+                      }
+                    }}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
             </CardContent>
             <CardFooter>
               <Button type="submit" disabled={form.formState.isSubmitting}>
-                Salvar Alterações
+                {form.formState.isSubmitting ? 'Salvando...' : 'Salvar Alterações'}
               </Button>
             </CardFooter>
           </form>
@@ -138,4 +233,4 @@ export default function EditHighlightPage({ params }: { params: { id: string } }
       </Card>
     </AdminLayout>
   );
-} 
+}

@@ -9,7 +9,6 @@ import dynamic from 'next/dynamic';
 
 const ProductModal = dynamic(() => import('@/components/ProductModal'), { ssr: false });
 
-// Tipos que refletem o retorno das actions
 interface Highlight { id: string; title: string; description: string; imageUrl: string; link: string; isActive: boolean; }
 interface Category { id: string; name: string; }
 interface Item { id: string; title: string; description: string; price: number; imageUrl: string; categoryId: string; categoryName?: string; }
@@ -29,7 +28,7 @@ export default function HomePageClient({ highlights, categories, items }: HomePa
 
   const autoplayPlugin = useRef(Autoplay({ delay: 5000, stopOnInteraction: true, stopOnMouseEnter: true }));
 
-  const handleProductClick = (product: Item) => { // Usando Item
+  const handleProductClick = (product: Item) => { 
     setSelectedProduct(product);
     setIsModalOpen(true);
   };
@@ -42,6 +41,25 @@ export default function HomePageClient({ highlights, categories, items }: HomePa
   const filteredItems = activeCategory === 'Todos' 
     ? items 
     : items.filter(item => item.categoryId === activeCategory);
+
+  const HighlightContent = ({ highlight, index }: { highlight: Highlight, index: number }) => (
+    <div className="relative w-full h-48 md:h-64 overflow-hidden shadow-md">
+      <Image 
+        src={highlight.imageUrl} 
+        alt={highlight.title} 
+        fill
+        className="object-cover"
+        priority={index === 0}
+        loading={index === 0 ? 'eager' : 'lazy'}
+        sizes="(max-width: 768px) 100vw, 50vw"
+      />
+      <div className="absolute bottom-0 left-0 w-full h-2/5 bg-gradient-to-t from-black/80 to-transparent" />
+      <div className="absolute bottom-0 left-0 w-full flex flex-col items-start px-4 pb-4 z-10">
+        <h2 className="text-lg font-bold text-white mb-1 drop-shadow">{highlight.title}</h2>
+        <p className="text-xs text-white mb-2 drop-shadow line-clamp-2">{highlight.description}</p>
+      </div>
+    </div>
+  );
 
   return (
     <section>
@@ -56,24 +74,13 @@ export default function HomePageClient({ highlights, categories, items }: HomePa
             <CarouselContent>
               {highlights.map((highlight, index) => (
                 <CarouselItem key={highlight.id}>
-                  <Link href={highlight.link} target="_blank">
-                    <div className="relative w-full h-48 md:h-64 overflow-hidden shadow-md">
-                      <Image 
-                        src={highlight.imageUrl} 
-                        alt={highlight.title} 
-                        fill
-                        className="object-cover"
-                        priority={index === 0}
-                        loading={index === 0 ? 'eager' : 'lazy'}
-                        sizes="(max-width: 768px) 100vw, 50vw"
-                      />
-                      <div className="absolute bottom-0 left-0 w-full h-2/5 bg-gradient-to-t from-black/80 to-transparent" />
-                      <div className="absolute bottom-0 left-0 w-full flex flex-col items-start px-4 pb-4 z-10">
-                        <h2 className="text-lg font-bold text-white mb-1 drop-shadow">{highlight.title}</h2>
-                        <p className="text-xs text-white mb-2 drop-shadow line-clamp-2">{highlight.description}</p>
-                      </div>
-                    </div>
-                  </Link>
+                  {highlight.link ? (
+                    <Link href={highlight.link} target="_blank">
+                      <HighlightContent highlight={highlight} index={index} />
+                    </Link>
+                  ) : (
+                    <HighlightContent highlight={highlight} index={index} />
+                  )}
                 </CarouselItem>
               ))}
             </CarouselContent>

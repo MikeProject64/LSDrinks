@@ -26,10 +26,13 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 const highlightSchema = z.object({
   title: z.string().min(3, "O título deve ter pelo menos 3 caracteres."),
   description: z.string().min(10, "A descrição deve ter pelo menos 10 caracteres."),
-  link: z.string().url("O link (URL) é inválido."),
+  link: z.string().url("O link (URL) é inválido.").optional().or(z.literal('')),
   imageUrl: z.string().optional(),
   imageFile: z.instanceof(File).optional(),
 }).superRefine((data, ctx) => {
+  if (data.link && !z.string().url().safeParse(data.link).success) {
+      ctx.addIssue({ code: z.ZodIssueCode.invalid_string, validation: "url", message: "O link (URL) é inválido.", path: ["link"] });
+  }
   const { imageUrl, imageFile } = data;
   if (imageUrl && !z.string().url().safeParse(imageUrl).success) {
     ctx.addIssue({ code: z.ZodIssueCode.invalid_string, validation: "url", message: "A URL da imagem é inválida.", path: ["imageUrl"] });
@@ -73,11 +76,11 @@ export default function NewHighlightPage() {
       const dataToSave = {
         title: data.title,
         description: data.description,
-        link: data.link,
+        link: data.link || '',
         imageUrl: finalImageUrl,
       };
 
-      await addHighlight(dataToSave);
+      await addHighlight(dataToSave as any);
       
       toast({
         title: "Sucesso!",
@@ -140,7 +143,7 @@ export default function NewHighlightPage() {
                   <FormItem>
                     <FormLabel>Link (URL)</FormLabel>
                     <FormControl>
-                      <Input placeholder="https://seusite.com/promocao" {...field} />
+                      <Input placeholder="https://seusite.com/promocao (Opcional)" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -194,4 +197,4 @@ export default function NewHighlightPage() {
       </Card>
     </AdminLayout>
   );
-} 
+}
