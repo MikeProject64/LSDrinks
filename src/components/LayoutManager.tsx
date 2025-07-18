@@ -27,10 +27,10 @@ export default function LayoutManager({ children }: { children: React.ReactNode 
           {children}
         </main>
         <Footer />
+        <Toaster />
+        {/* O MobileNav agora é sempre exibido em páginas não-admin */}
+        <MobileNav />
       </div>
-      <Toaster />
-      {/* O MobileNav agora é sempre exibido em páginas não-admin */}
-      <MobileNav />
     </CartProvider>
   );
 }
