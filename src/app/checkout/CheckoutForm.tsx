@@ -75,7 +75,7 @@ export default function CheckoutForm() {
       if (result.success) {
         toast({ title: 'Sucesso!', description: 'Seu pedido foi realizado com sucesso.' });
         clearCart();
-        router.push('/orders'); // Redireciona para a página de pedidos
+        router.push('/orders');
       } else {
          throw new Error('A transação falhou.');
       }

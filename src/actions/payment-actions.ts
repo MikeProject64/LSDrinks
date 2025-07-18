@@ -16,6 +16,7 @@ const paymentSettingsSchema = z.object({
     publicKey: z.string().optional(),
     secretKey: z.string().optional(),
   }).optional(),
+  isPaymentOnDeliveryEnabled: z.boolean().default(false),
 });
 
 export type PaymentSettings = z.infer<typeof paymentSettingsSchema>;
@@ -62,7 +63,7 @@ export async function getPaymentSettings(): Promise<PaymentSettings | null> {
 }
 
 const checkoutSchema = z.object({
-  items: z.array(z.any()), // Seria melhor validar os itens do carrinho com mais precisão
+  items: z.array(z.any()),
   totalAmount: z.number(),
   paymentMethodId: z.string(),
 });
@@ -73,7 +74,27 @@ export async function processCheckout(data: { items: CartItem[], totalAmount: nu
     throw new Error('Dados de checkout inválidos.');
   }
 
+  const { items, totalAmount, paymentMethodId } = data;
+
   const paymentSettings = await getPaymentSettings();
+
+  // Caso: Pagamento na Entrega
+  if (paymentMethodId === 'on_delivery') {
+    if (!paymentSettings?.isPaymentOnDeliveryEnabled) {
+      throw new Error('O método de pagamento na entrega não está habilitado.');
+    }
+    const orderData = {
+      items,
+      totalAmount,
+      status: 'Pendente', // Novo status para indicar pagamento na entrega
+      paymentMethod: 'Na Entrega',
+      createdAt: serverTimestamp(),
+    };
+    const orderDoc = await addDoc(collection(db, 'orders'), orderData);
+    return { success: true, orderId: orderDoc.id };
+  }
+
+  // Caso: Pagamento com Stripe
   if (!paymentSettings?.isLive || !paymentSettings.stripe?.secretKey) {
     throw new Error('O sistema de pagamento não está ativo ou configurado.');
   }
@@ -81,11 +102,10 @@ export async function processCheckout(data: { items: CartItem[], totalAmount: nu
   const stripe = new Stripe(paymentSettings.stripe.secretKey);
 
   try {
-    // 1. Criar o PaymentIntent
     const paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(data.totalAmount * 100), // Stripe usa centavos
+      amount: Math.round(totalAmount * 100),
       currency: 'brl',
-      payment_method: data.paymentMethodId,
+      payment_method: paymentMethodId,
       confirm: true,
       automatic_payment_methods: {
         enabled: true,
@@ -94,17 +114,15 @@ export async function processCheckout(data: { items: CartItem[], totalAmount: nu
     });
 
     if (paymentIntent.status === 'succeeded') {
-      // 2. Salvar o pedido no Firestore
       const orderData = {
-        items: data.items,
-        totalAmount: data.totalAmount,
-        status: 'paid',
+        items,
+        totalAmount,
+        status: 'Pago',
+        paymentMethod: 'Cartão de Crédito',
+        stripePaymentIntentId: paymentIntent.id,
         createdAt: serverTimestamp(),
-        // TODO: Adicionar ID do usuário quando a autenticação estiver implementada
-        // userId: 'current_user_id', 
       };
       await addDoc(collection(db, 'orders'), orderData);
-
       return { success: true, orderId: paymentIntent.id };
     } else {
        throw new Error('Falha no pagamento.');
@@ -142,4 +160,4 @@ export async function getOrders() {
     console.error("Error fetching orders: ", e);
     throw new Error('Falha ao buscar os pedidos.');
   }
-} 
+}

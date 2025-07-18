@@ -10,7 +10,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 
@@ -21,6 +20,7 @@ const stripeFormSchema = z.object({
 
 const statusFormSchema = z.object({
     isLive: z.boolean(),
+    isPaymentOnDeliveryEnabled: z.boolean(),
 });
 
 export default function PaymentForms() {
@@ -29,13 +29,12 @@ export default function PaymentForms() {
   
   const stripeForm = useForm({
     resolver: zodResolver(stripeFormSchema),
-    // Correctly initialize with empty strings to prevent uncontrolled to controlled error
     defaultValues: { publicKey: '', secretKey: '' },
   });
 
   const statusForm = useForm({
       resolver: zodResolver(statusFormSchema),
-      defaultValues: { isLive: false }
+      defaultValues: { isLive: false, isPaymentOnDeliveryEnabled: false }
   });
 
   useEffect(() => {
@@ -45,13 +44,13 @@ export default function PaymentForms() {
         const currentSettings = await getPaymentSettings();
         if (currentSettings) {
           setSettings(currentSettings);
-          // Ensure values are not undefined
           stripeForm.reset({
             publicKey: currentSettings.stripe?.publicKey || '',
             secretKey: currentSettings.stripe?.secretKey || '',
           });
           statusForm.reset({
-            isLive: currentSettings.isLive || false
+            isLive: currentSettings.isLive || false,
+            isPaymentOnDeliveryEnabled: currentSettings.isPaymentOnDeliveryEnabled || false,
           });
         }
       } catch (error) {
@@ -66,8 +65,9 @@ export default function PaymentForms() {
   const handleStripeSubmit = async (values: z.infer<typeof stripeFormSchema>) => {
     try {
         const newSettings: PaymentSettings = {
-            ...settings, // Mantém as configurações existentes, como isLive
+            ...settings,
             isLive: settings?.isLive || false,
+            isPaymentOnDeliveryEnabled: settings?.isPaymentOnDeliveryEnabled || false,
             stripe: values,
         };
       await savePaymentSettings(newSettings);
@@ -77,17 +77,18 @@ export default function PaymentForms() {
     }
   };
 
-  const handleStatusChange = async (isLive: boolean) => {
+  const handleStatusChange = async (newStatus: Partial<PaymentSettings>) => {
     try {
         const newSettings: PaymentSettings = {
+            isLive: settings?.isLive || false,
+            isPaymentOnDeliveryEnabled: settings?.isPaymentOnDeliveryEnabled || false,
             ...settings,
-            isLive: isLive,
-            stripe: settings?.stripe // Mantém as credenciais existentes
+            ...newStatus,
         };
       const result = await savePaymentSettings(newSettings);
-      setSettings(result.data!); // Atualiza o estado local com os dados retornados
-      statusForm.reset({ isLive: result.data!.isLive }); // Garante que o form está sincronizado
-      toast({ title: 'Sucesso', description: `Pagamentos ${isLive ? 'ativados' : 'desativados'}.` });
+      setSettings(result.data!);
+      statusForm.reset(result.data!);
+      toast({ title: 'Sucesso', description: 'Status do pagamento atualizado.' });
     } catch (error) {
         toast({ title: 'Erro', description: 'Não foi possível alterar o status.', variant: 'destructive'});
     }
@@ -100,27 +101,27 @@ export default function PaymentForms() {
   return (
     <Tabs defaultValue="status" className="w-full">
       <TabsList>
-        <TabsTrigger value="status">Ativar/Desativar</TabsTrigger>
+        <TabsTrigger value="status">Status</TabsTrigger>
         <TabsTrigger value="stripe">Stripe</TabsTrigger>
       </TabsList>
       <TabsContent value="status">
         <Card>
           <CardHeader>
-            <CardTitle>Status do Pagamento</CardTitle>
+            <CardTitle>Status dos Métodos de Pagamento</CardTitle>
             <CardDescription>
-              Ative ou desative o sistema de pagamento da sua loja. Quando desativado, os clientes não poderão finalizar a compra.
+              Ative ou desative os métodos de pagamento da sua loja.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <Form {...statusForm}>
-                <form>
+                <form className="space-y-4">
                     <FormField
                         control={statusForm.control}
                         name="isLive"
                         render={({ field }) => (
                             <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
                                 <div className="space-y-0.5">
-                                    <FormLabel className="text-base">Pagamentos Ativos</FormLabel>
+                                    <FormLabel className="text-base">Pagamentos com Cartão (Stripe)</FormLabel>
                                     <FormDescription>
                                         Permitir que clientes realizem pagamentos via Stripe.
                                     </FormDescription>
@@ -130,7 +131,30 @@ export default function PaymentForms() {
                                     checked={field.value}
                                     onCheckedChange={(checked) => {
                                         field.onChange(checked);
-                                        handleStatusChange(checked);
+                                        handleStatusChange({ isLive: checked });
+                                    }}
+                                    />
+                                </FormControl>
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={statusForm.control}
+                        name="isPaymentOnDeliveryEnabled"
+                        render={({ field }) => (
+                            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                                <div className="space-y-0.5">
+                                    <FormLabel className="text-base">Pagamento na Entrega</FormLabel>
+                                    <FormDescription>
+                                       Permitir que clientes paguem com PIX ou dinheiro na entrega.
+                                    </FormDescription>
+                                </div>
+                                <FormControl>
+                                    <Switch
+                                    checked={field.value}
+                                    onCheckedChange={(checked) => {
+                                        field.onChange(checked);
+                                        handleStatusChange({ isPaymentOnDeliveryEnabled: checked });
                                     }}
                                     />
                                 </FormControl>
@@ -189,4 +213,4 @@ export default function PaymentForms() {
       </TabsContent>
     </Tabs>
   );
-} 
+}

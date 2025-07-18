@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Elements } from '@stripe/react-stripe-js';
 import { type Stripe } from '@stripe/stripe-js';
 import CheckoutForm from './CheckoutForm';
@@ -8,30 +8,24 @@ import CartSummary from './CartSummary';
 import { useCart } from '@/context/CartContext';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { getPaymentSettings } from '@/actions/payment-actions';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import { PaymentSettings } from '@/actions/payment-actions';
-import { useEffect } from 'react';
+import { getPaymentSettings, PaymentSettings, processCheckout } from '@/actions/payment-actions';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { toast } from '@/hooks/use-toast';
+import { useRouter } from 'next/navigation';
 
 interface CheckoutClientPageProps {
   stripePromise: Promise<Stripe | null>;
 }
 
-type Step = 'summary' | 'payment-method' | 'payment-form';
+type Step = 'summary' | 'payment-method' | 'processing';
 
 export default function CheckoutClientPage({ stripePromise }: CheckoutClientPageProps) {
-  const { items } = useCart();
+  const { items, totalWithFee, clearCart } = useCart();
+  const router = useRouter();
   const [step, setStep] = useState<Step>('summary');
   const [selectedPayment, setSelectedPayment] = useState<string | null>(null);
   const [paymentSettings, setPaymentSettings] = useState<PaymentSettings | null>(null);
-  const [isLoadingSettings, setIsLoadingSettings] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     async function loadPaymentSettings() {
@@ -40,15 +34,49 @@ export default function CheckoutClientPage({ stripePromise }: CheckoutClientPage
         setPaymentSettings(settings);
       } catch (error) {
         console.error("Failed to load payment settings", error);
+        toast({ title: "Erro", description: "Não foi possível carregar os métodos de pagamento.", variant: "destructive" });
       } finally {
-        setIsLoadingSettings(false);
+        setIsLoading(false);
       }
     }
     loadPaymentSettings();
   }, []);
 
-  // Se o carrinho estiver vazio, mostra uma mensagem
-  if (items.length === 0) {
+  const handlePaymentOnDelivery = async () => {
+    setIsLoading(true);
+    setStep('processing');
+    try {
+      const result = await processCheckout({
+        items,
+        totalAmount: totalWithFee,
+        paymentMethodId: 'on_delivery',
+      });
+
+      if (result.success) {
+        toast({ title: 'Sucesso!', description: 'Seu pedido foi realizado e será pago na entrega.' });
+        clearCart();
+        router.push('/orders');
+      } else {
+         throw new Error('A transação falhou.');
+      }
+    } catch (err) {
+      const error = err as Error;
+      toast({ title: 'Erro no Pedido', description: error.message, variant: 'destructive' });
+      setStep('payment-method'); // Volta para a seleção
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  const proceedToNextStep = () => {
+    if (selectedPayment === 'on_delivery') {
+      handlePaymentOnDelivery();
+    } else {
+      setStep('payment-form');
+    }
+  }
+
+  if (items.length === 0 && step !== 'processing') {
     return (
       <div className="container mx-auto px-4 py-16 text-center">
         <h1 className="text-3xl font-bold mb-4">Seu carrinho está vazio</h1>
@@ -63,6 +91,15 @@ export default function CheckoutClientPage({ stripePromise }: CheckoutClientPage
   }
   
   const renderStep = () => {
+    if (isLoading) {
+      return (
+        <Card>
+          <CardHeader><CardTitle>Carregando...</CardTitle></CardHeader>
+          <CardContent><p>Aguarde um momento.</p></CardContent>
+        </Card>
+      );
+    }
+
     switch (step) {
       case 'summary':
         return (
@@ -77,7 +114,6 @@ export default function CheckoutClientPage({ stripePromise }: CheckoutClientPage
           </Card>
         );
       case 'payment-method':
-        if (isLoadingSettings) return <p>Carregando métodos de pagamento...</p>;
         return (
           <Card>
             <CardHeader><CardTitle>2. Método de Pagamento</CardTitle></CardHeader>
@@ -92,18 +128,26 @@ export default function CheckoutClientPage({ stripePromise }: CheckoutClientPage
                     Cartão de Crédito (Stripe)
                   </Button>
                 )}
-                {/* Outros métodos de pagamento podem ser adicionados aqui */}
+                {paymentSettings?.isPaymentOnDeliveryEnabled && (
+                   <Button
+                    variant={selectedPayment === 'on_delivery' ? 'default' : 'outline'}
+                    onClick={() => setSelectedPayment('on_delivery')}
+                    className="w-full justify-start p-4 h-auto"
+                  >
+                    Pagamento na Entrega (PIX ou Dinheiro)
+                  </Button>
+                )}
               </div>
               <div className="flex justify-between mt-6">
                 <Button variant="outline" onClick={() => setStep('summary')}>Voltar</Button>
-                <Button onClick={() => setStep('payment-form')} disabled={!selectedPayment}>
-                  Ir para Pagamento
+                <Button onClick={proceedToNextStep} disabled={!selectedPayment || isLoading}>
+                  {isLoading ? 'Processando...' : 'Finalizar Pedido'}
                 </Button>
               </div>
             </CardContent>
           </Card>
         );
-      case 'payment-form':
+      case 'payment-form': // Apenas para Stripe agora
         return (
           <Card>
             <CardHeader><CardTitle>3. Pagamento</CardTitle></CardHeader>
@@ -114,8 +158,17 @@ export default function CheckoutClientPage({ stripePromise }: CheckoutClientPage
                 </Elements>
               )}
               <Button variant="outline" onClick={() => setStep('payment-method')} className="w-full mt-6">
-                Voltar para Seleção de Pagamento
+                Trocar Método de Pagamento
               </Button>
+            </CardContent>
+          </Card>
+        );
+       case 'processing':
+        return (
+          <Card>
+            <CardHeader><CardTitle>Processando seu Pedido...</CardTitle></CardHeader>
+            <CardContent>
+              <p>Por favor, aguarde enquanto finalizamos seu pedido.</p>
             </CardContent>
           </Card>
         );
@@ -130,4 +183,4 @@ export default function CheckoutClientPage({ stripePromise }: CheckoutClientPage
       {renderStep()}
     </div>
   );
-} 
+}
