@@ -3,7 +3,7 @@
 
 import { z } from 'zod';
 import { db } from '@/lib/firebase';
-import { doc, setDoc, getDoc, collection, addDoc, serverTimestamp, query, getDocs, orderBy, Timestamp, where, documentId, writeBatch, updateDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, collection, addDoc, serverTimestamp, query, getDocs, orderBy, Timestamp, where, documentId, writeBatch, updateDoc, deleteDoc } from 'firebase/firestore';
 import Stripe from 'stripe';
 import { CartItem } from '@/types';
 
@@ -148,6 +148,7 @@ export async function getOrdersByIds(ids: string[]) {
   
     try {
       const orders: any[] = [];
+      // Firestore 'in' query supports up to 30 elements
       for (let i = 0; i < ids.length; i += 30) {
         const batchIds = ids.slice(i, i + 30);
         const q = query(collection(db, "orders"), where(documentId(), "in", batchIds));
@@ -168,6 +169,7 @@ export async function getOrdersByIds(ids: string[]) {
         });
       }
       
+      // Sort by date client-side as fetching in batches may mess up the order
       orders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   
       return orders;
@@ -217,3 +219,17 @@ export async function updateOrderStatus(data: {
     throw new Error("Falha ao atualizar o status do pedido.");
   }
 }
+
+export async function deleteOrder(orderId: string) {
+    if (!orderId) {
+      throw new Error('ID do pedido é obrigatório.');
+    }
+    try {
+      const orderRef = doc(db, 'orders', orderId);
+      await deleteDoc(orderRef);
+      return { success: true };
+    } catch (e) {
+      console.error("Error deleting order: ", e);
+      throw new Error('Falha ao excluir o pedido.');
+    }
+  }

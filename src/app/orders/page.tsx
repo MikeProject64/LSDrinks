@@ -10,11 +10,13 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import Image from 'next/image';
 import { CartItem } from '@/types';
-import { User, Phone, MapPin, Package, CreditCard } from "lucide-react";
+import { User, Phone, MapPin, CreditCard } from "lucide-react";
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
 
 interface Order {
     id: string;
@@ -61,51 +63,82 @@ export default function OrdersPage() {
     return status === 'Pago' ? 'default' : 'secondary';
   };
 
+  const getOrderStatusVariant = (status: string): "default" | "secondary" | "outline" | "destructive" | null | undefined => {
+    switch (status) {
+        case 'Aguardando': return 'secondary';
+        case 'Confirmado': return 'outline';
+        case 'Enviado': return 'default';
+        case 'Entregue': return 'default';
+        default: return 'outline';
+    }
+  };
+
+  const OrderSkeleton = () => (
+    <div className="space-y-4">
+        <div className="border rounded-lg p-4 space-y-4">
+            <div className="flex justify-between items-center">
+                <Skeleton className="h-6 w-24" />
+                <Skeleton className="h-6 w-32" />
+                <Skeleton className="h-6 w-20" />
+            </div>
+        </div>
+        <div className="border rounded-lg p-4 space-y-4">
+            <div className="flex justify-between items-center">
+                <Skeleton className="h-6 w-24" />
+                <Skeleton className="h-6 w-32" />
+                <Skeleton className="h-6 w-20" />
+            </div>
+        </div>
+    </div>
+  );
+
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
       <Card>
         <CardHeader>
           <CardTitle className="text-2xl font-bold">Meus Pedidos</CardTitle>
+          <CardDescription>Acompanhe o status dos seus pedidos recentes.</CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="space-y-4">
-              <Skeleton className="h-16 w-full" />
-              <Skeleton className="h-16 w-full" />
-              <Skeleton className="h-16 w-full" />
-            </div>
+            <OrderSkeleton />
           ) : orders.length === 0 ? (
-            <p className="text-muted-foreground text-center py-8">Você ainda não fez nenhum pedido.</p>
+            <div className="text-center py-12">
+                <p className="text-muted-foreground mb-4">Você ainda não fez nenhum pedido.</p>
+                <Button asChild>
+                    <Link href="/">Ver cardápio</Link>
+                </Button>
+            </div>
           ) : (
             <Accordion type="single" collapsible className="w-full space-y-4">
               {orders.map((order) => (
-                <AccordionItem value={order.id} key={order.id} className="border rounded-lg">
+                <AccordionItem value={order.id} key={order.id} className="border rounded-lg bg-card">
                   <AccordionTrigger className="p-4 hover:no-underline">
-                    <div className="flex justify-between items-center w-full text-sm sm:text-base">
-                      <span className="font-mono font-bold">#{order.id}</span>
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center w-full gap-2 text-left">
+                      <span className="font-mono font-bold text-lg sm:text-base">#{order.id}</span>
                       <div className='flex items-center gap-2'>
                         <Badge variant={getPaymentStatusVariant(order.paymentStatus)}>{order.paymentStatus}</Badge>
-                        <Badge variant="outline">{order.orderStatus}</Badge>
+                        <Badge variant={getOrderStatusVariant(order.orderStatus)}>{order.orderStatus}</Badge>
                       </div>
-                      <span className="font-bold whitespace-nowrap">R$ {order.totalAmount.toFixed(2)}</span>
+                      <span className="font-bold text-lg sm:text-base whitespace-nowrap">R$ {order.totalAmount.toFixed(2)}</span>
                     </div>
                   </AccordionTrigger>
                   <AccordionContent>
-                    <div className="p-4 border-t">
+                    <div className="p-4 border-t bg-muted/30">
                         <div className="grid md:grid-cols-2 gap-6">
                             <div>
                                 <h4 className="font-semibold mb-3">Itens do Pedido</h4>
-                                <div className="space-y-4">
-                                {order.items.map((item) => (
-                                    <div key={item.id} className="flex items-center justify-between">
+                                <div className="space-y-4 max-h-60 overflow-y-auto pr-2">
+                                {order.items.map((item, index) => (
+                                    <div key={`${item.id}-${index}`} className="flex items-center justify-between">
                                     <div className="flex items-center gap-4">
                                         <Image
                                         src={item.imageUrl}
                                         alt={item.title}
-                                        width={40}
-                                        height={40}
+                                        width={48}
+                                        height={48}
                                         className="rounded-md object-cover"
-                                        sizes="40px"
+                                        sizes="48px"
                                         />
                                         <div>
                                         <p className="font-semibold text-sm">{item.title}</p>
@@ -130,7 +163,7 @@ export default function OrdersPage() {
                                         <p className="flex items-start gap-2"><MapPin className="w-4 h-4 text-muted-foreground mt-1"/> {order.customer.address}</p>
                                     </div>
                                 </div>
-                                <div className="border-t"></div>
+                                <div className="border-t my-2"></div>
                                 <div>
                                     <h4 className="font-semibold mb-2">Pagamento</h4>
                                     <p className="text-sm flex items-center gap-2"><CreditCard className="w-4 h-4 text-muted-foreground"/>{order.paymentMethod}</p>
@@ -148,4 +181,3 @@ export default function OrdersPage() {
     </div>
   );
 }
-
