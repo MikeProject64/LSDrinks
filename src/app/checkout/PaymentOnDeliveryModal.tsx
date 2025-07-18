@@ -123,7 +123,7 @@ export default function PaymentOnDeliveryModal({ isOpen, onClose, onSubmit, tota
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-      <DialogContent>
+      <DialogContent className="w-[90vw] sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Pagamento na Entrega</DialogTitle>
           <DialogDescription>
@@ -179,4 +179,3 @@ export default function PaymentOnDeliveryModal({ isOpen, onClose, onSubmit, tota
     </Dialog>
   );
 }
-
