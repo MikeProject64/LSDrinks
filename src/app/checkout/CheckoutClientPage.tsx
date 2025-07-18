@@ -137,7 +137,9 @@ export default function CheckoutClientPage({ stripePromise }: CheckoutClientPage
             return (
                 <Card>
                     <CardHeader><CardTitle>1. Resumo do Pedido</CardTitle></CardHeader>
-                    <CardContent><CartSummary /></CardContent>
+                    <CardContent>
+                      <CartSummary />
+                    </CardContent>
                     <CardFooter>
                         <Button onClick={() => setStep('delivery')} className="w-full">
                             Próximo: Entrega

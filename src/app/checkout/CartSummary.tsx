@@ -3,6 +3,7 @@
 import { useCart } from '@/context/CartContext';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import Image from 'next/image';
+import { Separator } from '@/components/ui/separator';
 
 export default function CartSummary() {
   const { items, cartTotal, deliveryFee, totalWithFee } = useCart();
@@ -21,19 +22,19 @@ export default function CartSummary() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Resumo do Pedido</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <div className="border rounded-lg">
+      <div className="p-6">
+        <h3 className="text-lg font-medium">Itens do Pedido</h3>
+      </div>
+      <div className="px-6 space-y-4">
         {items.map((item) => (
-          <div key={item.id} className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
+          <div key={item.id} className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-4">
               <Image
                 src={item.imageUrl}
                 alt={item.title}
-                width={50}
-                height={50}
+                width={64}
+                height={64}
                 className="rounded-md object-cover"
               />
               <div>
@@ -43,26 +44,28 @@ export default function CartSummary() {
                 </p>
               </div>
             </div>
-            <p className="font-medium">
+            <p className="font-medium shrink-0">
               R$ {(item.price * item.quantity).toFixed(2)}
             </p>
           </div>
         ))}
-         <div className="border-t pt-4 space-y-2">
-            <div className="flex justify-between">
-                <p>Subtotal</p>
-                <p>R$ {cartTotal.toFixed(2)}</p>
-            </div>
-            <div className="flex justify-between">
-                <p>Taxa de Entrega</p>
-                <p>R$ {deliveryFee.toFixed(2)}</p>
-            </div>
-         </div>
-      </CardContent>
-      <CardFooter className="flex justify-between font-bold text-lg border-t pt-4">
+      </div>
+      <Separator className="my-6" />
+      <div className="px-6 space-y-2 text-muted-foreground">
+        <div className="flex justify-between">
+            <p>Subtotal</p>
+            <p className="text-foreground">R$ {cartTotal.toFixed(2)}</p>
+        </div>
+        <div className="flex justify-between">
+            <p>Taxa de Entrega</p>
+            <p className="text-foreground">R$ {deliveryFee.toFixed(2)}</p>
+        </div>
+      </div>
+      <Separator className="my-6" />
+      <div className="p-6 flex justify-between font-bold text-lg">
         <p>Total</p>
         <p>R$ {totalWithFee.toFixed(2)}</p>
-      </CardFooter>
-    </Card>
+      </div>
+    </div>
   );
-} 
+}
