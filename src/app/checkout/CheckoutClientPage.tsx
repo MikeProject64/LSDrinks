@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -5,7 +6,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Elements } from '@stripe/react-stripe-js';
-import { type Stripe } from '@stripe/stripe-js';
+import { type Stripe, loadStripe } from '@stripe/stripe-js';
 import { useRouter } from 'next/navigation';
 
 import CheckoutForm from './CheckoutForm';
@@ -15,11 +16,12 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { getPaymentSettings, PaymentSettings, processCheckout } from '@/actions/payment-actions';
+import { getPaymentSettings, PaymentSettings, saveOrder } from '@/actions/payment-actions';
+import { createPaymentIntent } from '@/actions/create-payment-intent';
 import { toast } from '@/hooks/use-toast';
 
 interface CheckoutClientPageProps {
-  stripePromise: Promise<Stripe | null>;
+  // We no longer pass the promise from the server page
 }
 
 type Step = 'summary' | 'delivery' | 'payment' | 'finalizing';
@@ -44,14 +46,21 @@ const saveOrderIdLocally = (orderId: string) => {
     }
 };
 
-export default function CheckoutClientPage({ stripePromise }: CheckoutClientPageProps) {
-  const { items, totalWithFee, clearCart } = useCart();
+export default function CheckoutClientPage({}: CheckoutClientPageProps) {
+  const { items, totalWithFee, clearCart, cartTotal } = useCart();
   const router = useRouter();
   const [step, setStep] = useState<Step>('summary');
   const [deliveryInfo, setDeliveryInfo] = useState<DeliveryFormValues | null>(null);
   const [selectedPayment, setSelectedPayment] = useState<string | null>(null);
   const [paymentSettings, setPaymentSettings] = useState<PaymentSettings | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // State for Stripe
+  const [stripePromise, setStripePromise] = useState<Promise<Stripe | null> | null>(null);
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [stripeOrderId, setStripeOrderId] = useState<string | null>(null);
+  const [stripeTotal, setStripeTotal] = useState<number>(0);
+
 
   const deliveryForm = useForm<DeliveryFormValues>({
     resolver: zodResolver(deliveryFormSchema),
@@ -68,6 +77,9 @@ export default function CheckoutClientPage({ stripePromise }: CheckoutClientPage
       try {
         const settings = await getPaymentSettings();
         setPaymentSettings(settings);
+        if (settings?.isLive && settings.stripe?.publicKey) {
+            setStripePromise(loadStripe(settings.stripe.publicKey));
+        }
       } catch (error) {
         console.error("Failed to load payment settings", error);
         toast({ title: "Erro", description: "Não foi possível carregar as configurações.", variant: "destructive" });
@@ -87,10 +99,18 @@ export default function CheckoutClientPage({ stripePromise }: CheckoutClientPage
     if (!deliveryInfo) return;
     setStep('finalizing');
     try {
-      const result = await processCheckout({
+      function generateOrderId() {
+        const letter = String.fromCharCode(65 + Math.floor(Math.random() * 26));
+        const numbers = Math.floor(1000 + Math.random() * 9000);
+        return `${letter}${numbers}`;
+      }
+      const orderId = generateOrderId();
+      
+      const result = await saveOrder({
         items,
         totalAmount: totalWithFee,
-        paymentMethodId: 'on_delivery',
+        paymentMethod: 'on_delivery',
+        orderId,
         ...deliveryInfo
       });
 
@@ -106,6 +126,25 @@ export default function CheckoutClientPage({ stripePromise }: CheckoutClientPage
       const error = err as Error;
       toast({ title: 'Erro no Pedido', description: error.message, variant: 'destructive' });
       setStep('payment'); // Volta para a seleção
+    }
+  };
+
+  const handleStripeSelect = async () => {
+    if (items.length === 0) {
+      toast({ title: "Erro", description: "Seu carrinho está vazio.", variant: "destructive" });
+      return;
+    }
+    setIsLoading(true);
+    try {
+        const intent = await createPaymentIntent({ items });
+        setClientSecret(intent.clientSecret);
+        setStripeTotal(intent.totalAmount);
+        setStripeOrderId(intent.orderId);
+        setSelectedPayment('stripe');
+    } catch (error: any) {
+        toast({ title: "Erro de Pagamento", description: error.message, variant: "destructive" });
+    } finally {
+        setIsLoading(false);
     }
   };
 
@@ -193,8 +232,9 @@ export default function CheckoutClientPage({ stripePromise }: CheckoutClientPage
                                   )}
                                   {paymentSettings?.isLive && paymentSettings.stripe?.publicKey && (
                                       <button
-                                        onClick={() => setSelectedPayment('stripe')}
-                                        className="w-full flex flex-col items-center justify-center p-6 rounded-lg border-2 border-muted hover:border-primary transition-colors bg-card"
+                                        onClick={handleStripeSelect}
+                                        disabled={isLoading}
+                                        className="w-full flex flex-col items-center justify-center p-6 rounded-lg border-2 border-muted hover:border-primary transition-colors bg-card disabled:opacity-50"
                                       >
                                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-8 h-8 mb-2 text-primary">
                                             <rect width="20" height="14" x="2" y="5" rx="2"/>
@@ -209,19 +249,21 @@ export default function CheckoutClientPage({ stripePromise }: CheckoutClientPage
                                   )}
                               </div>
                           )}
-                          {selectedPayment === 'stripe' && deliveryInfo && (
-                               <Elements stripe={stripePromise}>
+                          {selectedPayment === 'stripe' && deliveryInfo && clientSecret && stripePromise && stripeOrderId && (
+                               <Elements stripe={stripePromise} options={{ clientSecret }}>
                                   <CheckoutForm
                                     deliveryInfo={deliveryInfo}
                                     onSuccess={handleStripeSuccess}
                                     onFinalizing={() => setStep('finalizing')}
+                                    totalAmount={stripeTotal}
+                                    orderId={stripeOrderId}
                                     />
                                </Elements>
                           )}
                       </>
                   )}
                   <div className="flex flex-col-reverse sm:flex-row justify-between gap-4">
-                       <Button variant="outline" onClick={() => { setSelectedPayment(null); setStep('delivery'); }} className="w-full sm:w-auto">Voltar</Button>
+                       <Button variant="outline" onClick={() => { setSelectedPayment(null); setClientSecret(null); setStep('delivery'); }} className="w-full sm:w-auto">Voltar</Button>
                        {selectedPayment === 'on_delivery' && (
                            <Button onClick={handlePaymentOnDelivery} disabled={isLoading} className="w-full sm:w-auto">
                                {isLoading ? 'Finalizando...' : 'Finalizar Pedido'}

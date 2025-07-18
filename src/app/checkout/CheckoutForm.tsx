@@ -1,9 +1,10 @@
+
 'use client';
 
 import { useState } from 'react';
-import { useStripe, useElements, CardElement } from '@stripe/react-stripe-js';
+import { useStripe, useElements, CardElement, PaymentElement } from '@stripe/react-stripe-js';
 import { useCart } from '@/context/CartContext';
-import { processCheckout } from '@/actions/payment-actions';
+import { saveOrder } from '@/actions/payment-actions';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 
@@ -33,14 +34,16 @@ interface CheckoutFormProps {
         customerPhone: string;
         customerAddress: string;
     };
+    totalAmount: number;
+    orderId: string;
     onSuccess: (orderId: string) => void;
     onFinalizing: () => void;
 }
 
-export default function CheckoutForm({ deliveryInfo, onSuccess, onFinalizing }: CheckoutFormProps) {
+export default function CheckoutForm({ deliveryInfo, totalAmount, orderId, onSuccess, onFinalizing }: CheckoutFormProps) {
   const stripe = useStripe();
   const elements = useElements();
-  const { items, totalWithFee } = useCart();
+  const { items } = useCart();
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -48,52 +51,60 @@ export default function CheckoutForm({ deliveryInfo, onSuccess, onFinalizing }: 
     event.preventDefault();
     
     if (!stripe || !elements) {
-      setErrorMessage("Stripe não foi carregado corretamente.");
+      toast({ title: "Erro", description: "Stripe não foi carregado.", variant: "destructive" });
       return;
     }
     
     setIsLoading(true);
     onFinalizing();
     setErrorMessage(null);
-
-    const cardElement = elements.getElement(CardElement);
-    if (!cardElement) {
-      setErrorMessage("Elemento de cartão não encontrado.");
+    
+    const { error: submitError } = await elements.submit();
+    if (submitError) {
+      setErrorMessage(submitError.message || "Ocorreu um erro ao submeter o formulário.");
       setIsLoading(false);
       return;
     }
 
-    const { error: paymentMethodError, paymentMethod } = await stripe.createPaymentMethod({
-      type: 'card',
-      card: cardElement,
+    // A chamada para criar o PaymentIntent já foi feita.
+    // Agora confirmamos o pagamento usando o clientSecret passado para o <Elements> provider.
+    const { error: confirmError, paymentIntent } = await stripe.confirmPayment({
+        elements,
+        redirect: 'if_required' // Evita redirecionamento, crucial para SPAs
     });
 
-    if (paymentMethodError) {
-      setErrorMessage(paymentMethodError.message || "Ocorreu um erro ao criar o método de pagamento.");
-      toast({ title: 'Erro', description: paymentMethodError.message, variant: 'destructive'});
+    if (confirmError) {
+      setErrorMessage(confirmError.message || "Falha na confirmação do pagamento.");
+      toast({ title: 'Erro', description: confirmError.message, variant: 'destructive'});
       setIsLoading(false);
-      // NOTE: We don't return to the payment step here, let the user retry on the same screen.
       return;
     }
 
-    try {
-      const result = await processCheckout({
-        items,
-        totalAmount: totalWithFee,
-        paymentMethodId: paymentMethod.id,
-        ...deliveryInfo
-      });
-
-      if (result.success && result.orderId) {
-        onSuccess(result.orderId);
-      } else {
-         throw new Error('A transação falhou após a criação do método de pagamento.');
+    if (paymentIntent?.status === 'succeeded') {
+      try {
+        const result = await saveOrder({
+          items,
+          totalAmount: totalAmount,
+          paymentMethod: 'stripe',
+          orderId: orderId,
+          stripePaymentIntentId: paymentIntent.id,
+          ...deliveryInfo
+        });
+  
+        if (result.success && result.orderId) {
+          onSuccess(result.orderId);
+        } else {
+           throw new Error('O pagamento foi processado, mas falhou ao salvar o pedido.');
+        }
+      } catch (err) {
+        const error = err as Error;
+        setErrorMessage(error.message);
+        toast({ title: 'Erro Pós-Pagamento', description: error.message, variant: 'destructive' });
+        setIsLoading(false);
       }
-    } catch (err) {
-      const error = err as Error;
-      setErrorMessage(error.message);
-      toast({ title: 'Erro no Pagamento', description: error.message, variant: 'destructive' });
-      setIsLoading(false);
+    } else {
+        setErrorMessage(`Status do pagamento: ${paymentIntent?.status ?? 'desconhecido'}`);
+        setIsLoading(false);
     }
   };
 
@@ -101,11 +112,11 @@ export default function CheckoutForm({ deliveryInfo, onSuccess, onFinalizing }: 
     <form onSubmit={handleSubmit} className="space-y-6">
        <h3 className="text-lg font-semibold">Dados do Cartão</h3>
       <div className="p-4 border rounded-lg bg-background">
-        <CardElement options={cardElementOptions} />
+        <PaymentElement />
       </div>
       {errorMessage && <div className="text-red-500 text-sm font-medium">{errorMessage}</div>}
       <Button type="submit" disabled={!stripe || isLoading || items.length === 0} className="w-full" size="lg">
-        {isLoading ? 'Processando...' : `Pagar R$ ${totalWithFee.toFixed(2)}`}
+        {isLoading ? 'Processando...' : `Pagar R$ ${totalAmount.toFixed(2)}`}
       </Button>
     </form>
   );

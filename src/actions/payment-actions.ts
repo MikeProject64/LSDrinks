@@ -1,3 +1,4 @@
+
 'use server';
 
 import { z } from 'zod';
@@ -65,10 +66,12 @@ export async function getPaymentSettings(): Promise<PaymentSettings | null> {
 const checkoutSchema = z.object({
   items: z.array(z.any()),
   totalAmount: z.number(),
-  paymentMethodId: z.string(),
+  paymentMethod: z.enum(['on_delivery', 'stripe']),
   customerName: z.string(),
   customerPhone: z.string(),
   customerAddress: z.string(),
+  orderId: z.string(),
+  stripePaymentIntentId: z.string().optional(), // Opcional, apenas para Stripe
 });
 
 function generateOrderId() {
@@ -77,19 +80,23 @@ function generateOrderId() {
   return `${letter}${numbers}`;
 }
 
-export async function processCheckout(data: z.infer<typeof checkoutSchema>) {
+export async function saveOrder(data: z.infer<typeof checkoutSchema>) {
   const validation = checkoutSchema.safeParse(data);
   if (!validation.success) {
-    console.error(validation.error);
+    console.error('Validation Error:', validation.error);
     throw new Error('Dados de checkout inválidos.');
   }
 
-  const { items, totalAmount, paymentMethodId, customerName, customerPhone, customerAddress } = validation.data;
+  const { items, totalAmount, paymentMethod, customerName, customerPhone, customerAddress, orderId, stripePaymentIntentId } = validation.data;
 
   const paymentSettings = await getPaymentSettings();
-  const orderId = generateOrderId();
+  
+  if (paymentMethod === 'on_delivery' && !paymentSettings?.isPaymentOnDeliveryEnabled) {
+    throw new Error('O método de pagamento na entrega não está habilitado.');
+  }
 
-  const commonOrderData = {
+  const orderData = {
+    id: orderId,
     items,
     totalAmount,
     customer: {
@@ -98,68 +105,17 @@ export async function processCheckout(data: z.infer<typeof checkoutSchema>) {
         address: customerAddress
     },
     createdAt: serverTimestamp(),
+    status: paymentMethod === 'stripe' ? 'Pago' : 'Pendente',
+    paymentMethod: paymentMethod === 'stripe' ? 'Cartão de Crédito' : 'Na Entrega',
+    ...(stripePaymentIntentId && { stripePaymentIntentId }),
   };
 
-  // Caso: Pagamento na Entrega
-  if (paymentMethodId === 'on_delivery') {
-    if (!paymentSettings?.isPaymentOnDeliveryEnabled) {
-      throw new Error('O método de pagamento na entrega não está habilitado.');
-    }
-    const orderData = {
-      ...commonOrderData,
-      id: orderId,
-      status: 'Pendente',
-      paymentMethod: 'Na Entrega',
-    };
+  try {
     await setDoc(doc(db, 'orders', orderId), orderData);
     return { success: true, orderId };
-  }
-
-  // Caso: Pagamento com Stripe
-  if (!paymentSettings?.isLive || !paymentSettings.stripe?.secretKey) {
-    throw new Error('O sistema de pagamento não está ativo ou configurado.');
-  }
-
-  const stripe = new Stripe(paymentSettings.stripe.secretKey);
-
-  try {
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(totalAmount * 100),
-      currency: 'brl',
-      payment_method: paymentMethodId,
-      confirm: true,
-      automatic_payment_methods: {
-        enabled: true,
-        allow_redirects: 'never'
-      },
-      metadata: {
-        orderId: orderId,
-        customerName: customerName,
-      }
-    });
-
-    if (paymentIntent.status === 'succeeded') {
-      const orderData = {
-        ...commonOrderData,
-        id: orderId,
-        status: 'Pago',
-        paymentMethod: 'Cartão de Crédito',
-        stripePaymentIntentId: paymentIntent.id,
-      };
-      await setDoc(doc(db, 'orders', orderId), orderData);
-      return { success: true, orderId };
-    } else {
-       throw new Error('Falha no pagamento.');
-    }
-
-  } catch (err) {
-    const error = err as Error;
-    console.error('Stripe Error:', error);
-    let errorMessage = 'Ocorreu um erro desconhecido.';
-    if (error instanceof Stripe.errors.StripeCardError) {
-      errorMessage = error.message;
-    }
-    throw new Error(`Falha no processamento do pagamento: ${errorMessage}`);
+  } catch (e) {
+    console.error("Error saving order: ", e);
+    throw new Error('Falha ao salvar o pedido no banco de dados.');
   }
 }
 
