@@ -7,7 +7,11 @@ import { Button } from '@/components/ui/button';
 import { Trash2 } from 'lucide-react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
-export default function CartSummary() {
+interface CartSummaryProps {
+  defaultOpen?: boolean;
+}
+
+export default function CartSummary({ defaultOpen = false }: CartSummaryProps) {
   const { items, cartTotal, deliveryFee, totalWithFee, clearCart } = useCart();
 
   if (items.length === 0) {
@@ -21,7 +25,7 @@ export default function CartSummary() {
 
   return (
     <div className="space-y-4">
-        <Accordion type="single" collapsible className="w-full">
+        <Accordion type="single" collapsible className="w-full" defaultValue={defaultOpen ? "item-1" : undefined}>
             <AccordionItem value="item-1" className="border-b-0">
                 <div className="flex justify-between items-center">
                     <AccordionTrigger className="flex-1 py-0">

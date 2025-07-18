@@ -140,7 +140,7 @@ const StripeForm = ({ onSuccess, deliveryInfo, totalAmount, orderId }: {
 
     return (
         <form onSubmit={handleSubmit} className="space-y-6">
-            <h3 className="text-lg font-semibold">Dados do Cartão</h3>
+            <h3 className="text-lg font-semibold">Dados do Cartão de Crédito</h3>
             <div>
                 <PaymentElement />
             </div>
@@ -384,7 +384,7 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
         case 'summary':
             return (
                 <div className="space-y-8">
-                  <CartSummary />
+                  <CartSummary defaultOpen={true} />
                   <Button onClick={() => setStep('delivery')} className="w-full" size="lg">
                       Próximo: Entrega
                   </Button>
