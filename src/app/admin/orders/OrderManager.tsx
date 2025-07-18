@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuGroup } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import Image from "next/image";
 import { User, Phone, MapPin, MoreHorizontal, Trash2 } from "lucide-react";
@@ -184,7 +184,7 @@ export default function OrderManager({ initialOrders: initialOrdersProp }: { ini
     )
   }
 
-  const gridClass = "grid items-center grid-cols-[auto_1fr_1fr_1fr_auto_auto_auto_auto] gap-x-4";
+  const gridClass = "grid items-center grid-cols-[auto_minmax(120px,1fr)_minmax(120px,2fr)_minmax(100px,1fr)_minmax(110px,1fr)_minmax(110px,1fr)_auto] gap-x-4";
 
   return (
     <Card>
@@ -233,9 +233,9 @@ export default function OrderManager({ initialOrders: initialOrdersProp }: { ini
                 <div className="truncate">Pedido</div>
                 <div className="truncate hidden md:block">Cliente</div>
                 <div className="truncate">Valor</div>
-                <div className="truncate hidden md:block">Pagamento</div>
-                <div className="truncate hidden md:block">Status</div>
-                <div className="truncate col-span-2 text-center">Ações</div>
+                <div className="truncate">Pagamento</div>
+                <div className="truncate">Status</div>
+                <div className="truncate text-right">Ações</div>
             </div>
             {orders.map((order) => (
               <AccordionItem value={order.id} key={order.id} className="border-b">
@@ -252,48 +252,45 @@ export default function OrderManager({ initialOrders: initialOrdersProp }: { ini
                         <AccordionTrigger className="p-0 hover:no-underline flex justify-start truncate">
                             <div className="flex flex-col text-left">
                                 <span className="font-mono font-semibold">#{order.id}</span>
-                                <div className="md:hidden text-xs text-muted-foreground"><FormattedDate dateString={order.createdAt} /></div>
+                                <div className="text-xs text-muted-foreground"><FormattedDate dateString={order.createdAt} /></div>
                             </div>
                         </AccordionTrigger>
                         <div className="truncate hidden md:block">{order.customer?.name || 'Não informado'}</div>
                         <span className="font-medium truncate">R$ {order.totalAmount.toFixed(2)}</span>
                         
-                        <div className="hidden md:block">
+                        <div>
                             <Badge className={getPaymentStatusVariant(order.paymentStatus)}>{order.paymentStatus}</Badge>
                         </div>
-                         <div className="hidden md:block">
+                        <div>
                             <Badge variant={getOrderStatusVariant(order.orderStatus)}>{order.orderStatus}</Badge>
                         </div>
 
-                        <div className="flex gap-2 items-center" onClick={(e) => e.stopPropagation()}>
-                            <Select
-                                value={order.paymentStatus}
-                                onValueChange={(value) => handleStatusChange(order.id, 'paymentStatus', value as PaymentStatus)}
-                                disabled={isPending || order.paymentStatus === 'Pago'}
-                                >
-                                <SelectTrigger className="h-8 w-auto min-w-[130px] gap-1 text-xs"><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                    {paymentStatusOptions.map(status => <SelectItem key={status} value={status}>{status}</SelectItem>)}
-                                </SelectContent>
-                            </Select>
-                            <Select
-                                value={order.orderStatus}
-                                onValueChange={(value) => handleStatusChange(order.id, 'orderStatus', value as OrderStatus)}
-                                disabled={isPending}
-                                >
-                                <SelectTrigger className="h-8 w-auto min-w-[110px] gap-1 text-xs"><SelectValue/></SelectTrigger>
-                                <SelectContent>
-                                    {orderStatusOptions.map(status => <SelectItem key={status} value={status}>{status}</SelectItem>)}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <div onClick={(e) => e.stopPropagation()}>
+                        <div className="text-right" onClick={(e) => e.stopPropagation()}>
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                     <Button variant="ghost" className="h-8 w-8 p-0"><MoreHorizontal className="h-4 w-4" /></Button>
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
+                                <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
                                     <DropdownMenuLabel>Ações</DropdownMenuLabel>
+                                    <DropdownMenuGroup>
+                                        <DropdownMenuLabel className="text-xs font-normal">Pagamento</DropdownMenuLabel>
+                                        <Select value={order.paymentStatus} onValueChange={(value) => handleStatusChange(order.id, 'paymentStatus', value as PaymentStatus)}>
+                                            <SelectTrigger className="mx-2 w-auto min-w-[130px] gap-1 text-xs h-8"><SelectValue /></SelectTrigger>
+                                            <SelectContent>
+                                                {paymentStatusOptions.map(status => <SelectItem key={status} value={status}>{status}</SelectItem>)}
+                                            </SelectContent>
+                                        </Select>
+                                    </DropdownMenuGroup>
+                                    <DropdownMenuGroup>
+                                        <DropdownMenuLabel className="text-xs font-normal mt-2">Status do Pedido</DropdownMenuLabel>
+                                        <Select value={order.orderStatus} onValueChange={(value) => handleStatusChange(order.id, 'orderStatus', value as OrderStatus)}>
+                                            <SelectTrigger className="mx-2 w-auto min-w-[130px] gap-1 text-xs h-8"><SelectValue/></SelectTrigger>
+                                            <SelectContent>
+                                                {orderStatusOptions.map(status => <SelectItem key={status} value={status}>{status}</SelectItem>)}
+                                            </SelectContent>
+                                        </Select>
+                                    </DropdownMenuGroup>
+                                    <DropdownMenuSeparator />
                                     <DropdownMenuItem onClick={() => handleDelete(order)} className="text-red-500"><Trash2 className="mr-2 h-4 w-4"/>Excluir</DropdownMenuItem>
                                 </DropdownMenuContent>
                             </DropdownMenu>
