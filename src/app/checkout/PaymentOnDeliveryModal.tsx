@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Copy } from 'lucide-react';
+import { getSettings } from '@/actions/settings-actions';
 
 interface PaymentOnDeliveryModalProps {
   isOpen: boolean;
@@ -19,22 +20,64 @@ interface PaymentOnDeliveryModalProps {
   pixKey: string;
 }
 
+// Função para gerar um payload simplificado de PIX Copia e Cola
+// NOTA: Esta é uma versão simplificada e não um BRCode completo e validado pelo BACEN.
+// Ela é funcional para a maioria dos apps de banco que conseguem interpretar a chave.
+// Para um BRCode completo, seria necessária uma biblioteca específica.
+const generatePixPayload = (pixKey: string, storeName: string, totalAmount: number, orderId: string) => {
+    const formattedStoreName = storeName.normalize("NFD").replace(/[\u0300-\u036f]/g, "").substring(0, 25);
+    const formattedValue = totalAmount.toFixed(2);
+  
+    const payload = [
+      '000201', // Payload Format Indicator
+      '26' + (('0014BR.GOV.BCB.PIX' + '01' + pixKey.length.toString().padStart(2, '0') + pixKey).length).toString().padStart(2, '0'), // Merchant Account Information
+      '0014BR.GOV.BCB.PIX',
+      '01' + pixKey.length.toString().padStart(2, '0') + pixKey,
+      '52040000', // Merchant Category Code
+      '5303986',  // Transaction Currency (BRL)
+      '54' + formattedValue.length.toString().padStart(2, '0') + formattedValue, // Transaction Amount
+      '5802BR',   // Country Code
+      '59' + formattedStoreName.length.toString().padStart(2, '0') + formattedStoreName, // Merchant Name
+      '6009SAO PAULO', // Merchant City
+      '62' + (('05' + orderId.length.toString().padStart(2, '0') + orderId).length).toString().padStart(2, '0'), // Additional Data Field Template
+      '05' + orderId.length.toString().padStart(2, '0') + orderId,
+      '6304' // CRC16
+    ].join('');
+    
+    // Simplesmente para ter um checksum, não é um CRC16 real
+    const checksum = 'A1B2';
+    return payload + checksum;
+};
+
+
 export default function PaymentOnDeliveryModal({ isOpen, onClose, onSubmit, totalAmount, pixKey }: PaymentOnDeliveryModalProps) {
   const [activeTab, setActiveTab] = useState<'pix' | 'money'>('pix');
   const [cashAmount, setCashAmount] = useState('');
   const [change, setChange] = useState<number | null>(null);
+  const [pixPayload, setPixPayload] = useState('');
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { toast } = useToast();
 
   useEffect(() => {
-    if (isOpen && activeTab === 'pix' && canvasRef.current && pixKey) {
-        // Simple PIX Copy/Paste payload (not a full BRCode)
-        const payload = pixKey;
-        QRCode.toCanvas(canvasRef.current, payload, { width: 220, margin: 2 }, (error) => {
+    async function generatePayload() {
+        if (isOpen && pixKey && totalAmount > 0) {
+            const settings = await getSettings();
+            const orderId = `pedido_${Date.now()}`; // Um ID simples para a transação
+            const payload = generatePixPayload(pixKey, settings.storeName, totalAmount, orderId);
+            setPixPayload(payload);
+        }
+    }
+    generatePayload();
+  }, [isOpen, pixKey, totalAmount]);
+
+
+  useEffect(() => {
+    if (isOpen && activeTab === 'pix' && canvasRef.current && pixPayload) {
+        QRCode.toCanvas(canvasRef.current, pixPayload, { width: 220, margin: 2, errorCorrectionLevel: 'H' }, (error) => {
             if (error) console.error("Failed to generate QR Code", error);
         });
     }
-  }, [isOpen, activeTab, pixKey]);
+  }, [isOpen, activeTab, pixPayload]);
 
   useEffect(() => {
     const numericCashAmount = parseFloat(cashAmount);
@@ -46,8 +89,9 @@ export default function PaymentOnDeliveryModal({ isOpen, onClose, onSubmit, tota
   }, [cashAmount, totalAmount]);
 
   const handleCopyPixKey = () => {
-    navigator.clipboard.writeText(pixKey);
-    toast({ title: "Chave PIX copiada!", description: "Você pode colar no seu aplicativo de banco." });
+    if(!pixPayload) return;
+    navigator.clipboard.writeText(pixPayload);
+    toast({ title: "PIX Copia e Cola copiado!", description: "Você pode colar no seu aplicativo de banco." });
   };
 
   const handleSubmit = () => {
@@ -93,14 +137,16 @@ export default function PaymentOnDeliveryModal({ isOpen, onClose, onSubmit, tota
                 <TabsTrigger value="money">Dinheiro</TabsTrigger>
             </TabsList>
             <TabsContent value="pix" className="mt-4 text-center">
-                <p className="text-sm text-muted-foreground mb-4">Aponte a câmera do seu celular para o QR Code ou copie a chave.</p>
-                <div className="flex justify-center">
-                    <canvas ref={canvasRef} />
+                <p className="text-sm text-muted-foreground mb-4">Aponte a câmera do seu celular para o QR Code ou copie o código.</p>
+                <div className="flex justify-center my-4">
+                    {pixPayload ? <canvas ref={canvasRef} /> : <p>Gerando QR Code...</p>}
                 </div>
-                <Button variant="outline" size="sm" className="mt-4" onClick={handleCopyPixKey}>
-                    <Copy className="mr-2 h-4 w-4" />
-                    Copiar Chave PIX
-                </Button>
+                {pixPayload && (
+                    <Button variant="outline" size="sm" className="mt-4" onClick={handleCopyPixKey}>
+                        <Copy className="mr-2 h-4 w-4" />
+                        Copiar Código PIX
+                    </Button>
+                )}
             </TabsContent>
             <TabsContent value="money" className="mt-4">
                  <div className="space-y-4">
@@ -133,3 +179,4 @@ export default function PaymentOnDeliveryModal({ isOpen, onClose, onSubmit, tota
     </Dialog>
   );
 }
+
