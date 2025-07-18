@@ -25,32 +25,6 @@ interface HomePageClientProps {
   initialHasMore: boolean;
 }
 
-const Flame = ({ className }: { className?: string }) => (
-    <svg className={className} width="24" height="36" viewBox="0 0 24 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M12 36C12 36 24 28.8 24 18C24 7.2 18.6 0 12 0C5.4 0 0 7.2 0 18C0 28.8 12 36 12 36Z" fill="url(#paint0_linear_flame)"/>
-        <defs>
-            <linearGradient id="paint0_linear_flame" x1="12" y1="0" x2="12" y2="36" gradientUnits="userSpaceOnUse">
-                <stop stopColor="#FFC107"/>
-                <stop offset="1" stopColor="#FF9800"/>
-            </linearGradient>
-        </defs>
-        <style jsx>{`
-            .flame {
-                animation: flicker 3s infinite linear;
-                transform-origin: bottom;
-            }
-            @keyframes flicker {
-                0%, 100% { transform: scaleY(1) rotate(-1deg); opacity: 0.8; }
-                20% { transform: scaleY(1.05) rotate(2deg); opacity: 1; }
-                40% { transform: scaleY(0.98) rotate(-2deg); opacity: 0.9; }
-                60% { transform: scaleY(1.02) rotate(1deg); opacity: 0.8; }
-                80% { transform: scaleY(1) rotate(-1deg); opacity: 0.9; }
-            }
-        `}</style>
-    </svg>
-);
-
-
 const AnimatedProductCard = ({ product, onProductClick }: { product: Item; onProductClick: (product: Item) => void; }) => {
     const ref = useRef<HTMLDivElement>(null);
     const entry = useIntersectionObserver(ref, { threshold: 0.1, freezeOnceVisible: true });
@@ -202,9 +176,7 @@ export default function HomePageClient({ highlights, categories, initialItems, i
       )}
 
       {/* Categories */}
-      <nav className="flex justify-center mb-6 relative">
-          <Flame className="flame absolute -left-2 -bottom-2 transform rotate-45 opacity-50"/>
-          <Flame className="flame absolute -right-2 -bottom-2 transform -rotate-45 opacity-50" style={{animationDelay: '1.5s'}}/>
+      <nav className="flex justify-center mb-6">
         <ul className="flex gap-2 bg-transparent overflow-x-auto scrollbar-hide whitespace-nowrap max-w-full px-1">
           {allCategories.map((cat) => (
             <li key={cat.id}>
