@@ -3,7 +3,7 @@
 
 import { z } from 'zod';
 import { db, storage } from '@/lib/firebase';
-import { collection, addDoc, getDocs, serverTimestamp, query, orderBy, Timestamp, doc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, addDoc, getDocs, serverTimestamp, query, orderBy, Timestamp, doc, getDoc, updateDoc, deleteDoc, limit, startAfter } from 'firebase/firestore';
 import { getCategories } from './category-actions';
 
 const itemSchema = z.object({
@@ -65,6 +65,47 @@ export async function getItems() {
   } catch (e) {
     console.error("Error fetching documents: ", e);
     throw new Error('Falha ao buscar itens.');
+  }
+}
+
+export async function getItemsPaginated({ pageLimit = 12, lastVisibleId }: { pageLimit?: number, lastVisibleId?: string | null }) {
+  try {
+    const categoriesSnapshot = await getDocs(collection(db, "categories"));
+    const categories = new Map(categoriesSnapshot.docs.map(doc => [doc.id, doc.data().name]));
+
+    let itemsQuery = query(collection(db, "items"), orderBy("createdAt", "desc"), limit(pageLimit));
+
+    if (lastVisibleId) {
+      const lastVisibleDoc = await getDoc(doc(db, "items", lastVisibleId));
+      if (lastVisibleDoc.exists()) {
+        itemsQuery = query(collection(db, "items"), orderBy("createdAt", "desc"), startAfter(lastVisibleDoc), limit(pageLimit));
+      }
+    }
+    
+    const itemsSnapshot = await getDocs(itemsQuery);
+    
+    const items = itemsSnapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        title: data.title || '',
+        description: data.description || '',
+        price: data.price || 0,
+        imageUrl: data.imageUrl || '',
+        categoryId: data.categoryId || '',
+        categoryName: categories.get(data.categoryId) || 'Sem categoria',
+        createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
+      };
+    });
+    
+    const newLastVisibleId = itemsSnapshot.docs.length > 0 ? itemsSnapshot.docs[itemsSnapshot.docs.length - 1].id : null;
+    const hasMore = items.length === pageLimit;
+
+    return { items, lastVisibleId: newLastVisibleId, hasMore };
+
+  } catch (e) {
+    console.error("Error fetching paginated documents: ", e);
+    throw new Error('Falha ao buscar itens paginados.');
   }
 }
 

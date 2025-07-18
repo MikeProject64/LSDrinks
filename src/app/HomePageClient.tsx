@@ -1,11 +1,15 @@
 "use client";
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import ProductCard from '@/components/ProductCard';
 import { Carousel, CarouselContent, CarouselItem } from '@/components/ui/carousel';
+import { Button } from '@/components/ui/button';
+import { Loader2 } from 'lucide-react';
 import Autoplay from "embla-carousel-autoplay";
 import Link from 'next/link';
 import Image from 'next/image';
 import dynamic from 'next/dynamic';
+import { useIntersectionObserver } from '@/hooks/use-intersection-observer';
+import { getItemsPaginated } from '@/actions/item-actions';
 
 const ProductModal = dynamic(() => import('@/components/ProductModal'), { ssr: false });
 
@@ -13,18 +17,112 @@ interface Highlight { id: string; title: string; description: string; imageUrl: 
 interface Category { id: string; name: string; }
 interface Item { id: string; title: string; description: string; price: number; imageUrl: string; categoryId: string; categoryName?: string; }
 
-
 interface HomePageClientProps {
   highlights: Highlight[];
   categories: Category[];
-  items: Item[];
+  initialItems: Item[];
+  initialLastVisibleId: string | null;
+  initialHasMore: boolean;
 }
 
-export default function HomePageClient({ highlights, categories, items }: HomePageClientProps) {
+const Flame = ({ className }: { className?: string }) => (
+    <svg className={className} width="24" height="36" viewBox="0 0 24 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 36C12 36 24 28.8 24 18C24 7.2 18.6 0 12 0C5.4 0 0 7.2 0 18C0 28.8 12 36 12 36Z" fill="url(#paint0_linear_flame)"/>
+        <defs>
+            <linearGradient id="paint0_linear_flame" x1="12" y1="0" x2="12" y2="36" gradientUnits="userSpaceOnUse">
+                <stop stopColor="#FFC107"/>
+                <stop offset="1" stopColor="#FF9800"/>
+            </linearGradient>
+        </defs>
+        <style jsx>{`
+            .flame {
+                animation: flicker 3s infinite linear;
+                transform-origin: bottom;
+            }
+            @keyframes flicker {
+                0%, 100% { transform: scaleY(1) rotate(-1deg); opacity: 0.8; }
+                20% { transform: scaleY(1.05) rotate(2deg); opacity: 1; }
+                40% { transform: scaleY(0.98) rotate(-2deg); opacity: 0.9; }
+                60% { transform: scaleY(1.02) rotate(1deg); opacity: 0.8; }
+                80% { transform: scaleY(1) rotate(-1deg); opacity: 0.9; }
+            }
+        `}</style>
+    </svg>
+);
+
+
+const AnimatedProductCard = ({ product, onProductClick }: { product: Item; onProductClick: (product: Item) => void; }) => {
+    const ref = useRef<HTMLDivElement>(null);
+    const entry = useIntersectionObserver(ref, { threshold: 0.1, freezeOnceVisible: true });
+    const isVisible = !!entry?.isIntersecting;
+  
+    return (
+      <div 
+        ref={ref}
+        className={`transition-all duration-700 ease-in-out ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
+      >
+        <ProductCard product={product} onProductClick={onProductClick} />
+      </div>
+    );
+};
+
+export default function HomePageClient({ highlights, categories, initialItems, initialLastVisibleId, initialHasMore }: HomePageClientProps) {
   const allCategories = [{ id: 'Todos', name: 'Todos' }, ...categories];
   const [activeCategory, setActiveCategory] = useState('Todos');
   const [selectedProduct, setSelectedProduct] = useState<Item | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const [items, setItems] = useState<Item[]>(initialItems);
+  const [lastVisibleId, setLastVisibleId] = useState<string | null>(initialLastVisibleId);
+  const [hasMore, setHasMore] = useState(initialHasMore);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const categoryChangeRef = useRef(false);
+
+  useEffect(() => {
+    if (categoryChangeRef.current) {
+      setItems(initialItems);
+      setLastVisibleId(initialLastVisibleId);
+      setHasMore(initialHasMore);
+      categoryChangeRef.current = false;
+    }
+  }, [initialItems, initialLastVisibleId, initialHasMore]);
+
+  const handleCategoryChange = (categoryId: string) => {
+    categoryChangeRef.current = true;
+    setActiveCategory(categoryId);
+    // This will cause a re-render which triggers the effect above
+    // to reset items based on the new props from the server for that category.
+    // For "All", we handle it client-side.
+    if (categoryId !== 'Todos') {
+      // Logic for filtered initial load would go here if we were to fetch category-specific items from server
+      setItems(initialItems.filter(item => item.categoryId === categoryId));
+      setHasMore(false); // Disable "load more" for specific categories for now
+    } else {
+      setItems(initialItems);
+      setHasMore(initialHasMore);
+      setLastVisibleId(initialLastVisibleId);
+    }
+  };
+  
+  const handleLoadMore = async () => {
+    if (!hasMore || isLoadingMore) return;
+    
+    setIsLoadingMore(true);
+    try {
+      const result = await getItemsPaginated({ lastVisibleId });
+      if (result.items.length > 0) {
+        setItems(prevItems => [...prevItems, ...result.items]);
+        setLastVisibleId(result.lastVisibleId);
+        setHasMore(result.hasMore);
+      } else {
+        setHasMore(false);
+      }
+    } catch (error) {
+      console.error("Failed to load more items:", error);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
 
   const autoplayPlugin = useRef(Autoplay({ delay: 5000, stopOnInteraction: true, stopOnMouseEnter: true }));
 
@@ -104,7 +202,9 @@ export default function HomePageClient({ highlights, categories, items }: HomePa
       )}
 
       {/* Categories */}
-      <nav className="flex justify-center mb-6">
+      <nav className="flex justify-center mb-6 relative">
+          <Flame className="flame absolute -left-2 -bottom-2 transform rotate-45 opacity-50"/>
+          <Flame className="flame absolute -right-2 -bottom-2 transform -rotate-45 opacity-50" style={{animationDelay: '1.5s'}}/>
         <ul className="flex gap-2 bg-transparent overflow-x-auto scrollbar-hide whitespace-nowrap max-w-full px-1">
           {allCategories.map((cat) => (
             <li key={cat.id}>
@@ -112,7 +212,7 @@ export default function HomePageClient({ highlights, categories, items }: HomePa
                 className={`px-4 py-2 rounded-full text-sm font-medium transition-colors min-w-[90px] border border-border shadow-sm
                   ${activeCategory === cat.id ? 'bg-accent text-accent-foreground' : 'bg-card text-muted-foreground hover:bg-accent/20'}
                 `}
-                onClick={() => setActiveCategory(cat.id)}
+                onClick={() => handleCategoryChange(cat.id)}
               >
                 {cat.name}
               </button>
@@ -124,13 +224,29 @@ export default function HomePageClient({ highlights, categories, items }: HomePa
       {/* Products */}
       <div className="flex flex-col gap-4">
         {filteredItems.map((item) => (
-          <ProductCard 
-            key={item.id} 
-            product={item as any} 
-            onProductClick={() => handleProductClick(item)} 
-          />
+           <AnimatedProductCard 
+             key={item.id} 
+             product={item} 
+             onProductClick={() => handleProductClick(item)} 
+           />
         ))}
       </div>
+
+       {/* Load More Button */}
+       {activeCategory === 'Todos' && hasMore && (
+        <div className="flex justify-center mt-8">
+          <Button onClick={handleLoadMore} disabled={isLoadingMore}>
+            {isLoadingMore ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Carregando...
+              </>
+            ) : (
+              'Ver Mais'
+            )}
+          </Button>
+        </div>
+      )}
 
       <ProductModal 
         product={selectedProduct as any}
