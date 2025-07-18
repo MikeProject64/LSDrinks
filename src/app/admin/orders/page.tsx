@@ -10,14 +10,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
     Accordion,
     AccordionContent,
     AccordionItem,
@@ -66,11 +58,15 @@ export default async function AdminOrdersPage() {
                             {/* Customer Info */}
                             <div>
                                 <h4 className="font-semibold mb-3">Dados do Cliente</h4>
-                                <div className="space-y-2 text-sm text-muted-foreground">
-                                    <p className="flex items-center gap-2"><User className="w-4 h-4"/> {order.customer.name}</p>
-                                    <p className="flex items-center gap-2"><Phone className="w-4 h-4"/> {order.customer.phone}</p>
-                                    <p className="flex items-center gap-2"><MapPin className="w-4 h-4"/> {order.customer.address}</p>
-                                </div>
+                                {order.customer ? (
+                                    <div className="space-y-2 text-sm text-muted-foreground">
+                                        <p className="flex items-center gap-2"><User className="w-4 h-4"/> {order.customer.name}</p>
+                                        <p className="flex items-center gap-2"><Phone className="w-4 h-4"/> {order.customer.phone}</p>
+                                        <p className="flex items-center gap-2"><MapPin className="w-4 h-4"/> {order.customer.address}</p>
+                                    </div>
+                                ) : (
+                                    <p className="text-sm text-muted-foreground">Dados do cliente não disponíveis.</p>
+                                )}
                             </div>
                             {/* Items */}
                             <div>
