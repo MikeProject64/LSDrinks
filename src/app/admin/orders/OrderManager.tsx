@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { getAllOrders, updateOrderStatus } from "@/actions/payment-actions";
 import { toast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
@@ -10,29 +10,30 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import Image from "next/image";
 import { User, Phone, MapPin } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type Order = Awaited<ReturnType<typeof getAllOrders>>[0];
 
 const paymentStatusOptions = ['Pendente', 'Pago'] as const;
 const orderStatusOptions = ['Aguardando', 'Confirmado', 'Enviado', 'Entregue'] as const;
 
-const getPaymentStatusVariant = (status: string) => {
-    switch (status) {
-        case 'Pago': return 'default';
-        case 'Pendente': return 'secondary';
-        default: return 'outline';
-    }
-};
+// Novo componente para renderizar a data de forma segura no cliente
+const FormattedDate = ({ dateString }: { dateString: string }) => {
+    const [formattedDate, setFormattedDate] = useState<string | null>(null);
 
-const getOrderStatusVariant = (status: string) => {
-    switch (status) {
-        case 'Aguardando': return 'secondary';
-        case 'Confirmado': return 'outline';
-        case 'Enviado': return 'default';
-        case 'Entregue': return 'default';
-        default: return 'outline';
+    useEffect(() => {
+        // Esta formatação só irá rodar no cliente, após a hidratação.
+        setFormattedDate(new Date(dateString).toLocaleString("pt-BR"));
+    }, [dateString]);
+
+    if (!formattedDate) {
+        // Mostra um esqueleto enquanto a data não foi formatada no cliente.
+        // Isso garante que o SSR e o render inicial do cliente coincidam.
+        return <Skeleton className="h-4 w-36" />;
     }
-};
+
+    return <span>{formattedDate}</span>;
+}
 
 export default function OrderManager({ initialOrders }: { initialOrders: Order[] }) {
   const [orders, setOrders] = useState<Order[]>(initialOrders);
@@ -68,19 +69,21 @@ export default function OrderManager({ initialOrders }: { initialOrders: Order[]
         ) : (
           <Accordion type="multiple" className="w-full">
             {orders.map((order) => (
-              <AccordionItem value={order.id} key={order.id}>
+              <AccordionItem value={order.id} key={order.id} className="border-b-0">
                 <div className="flex items-center gap-4 pr-4 border-b">
                    <AccordionTrigger className="flex-1 hover:no-underline py-4">
                       <div className="w-full grid grid-cols-1 sm:grid-cols-3 items-center text-sm font-normal gap-4 text-left">
                         <span className="font-mono font-semibold">#{order.id}</span>
-                        <span className="hidden sm:block">{new Date(order.createdAt).toLocaleString("pt-BR")}</span>
+                        <div className="hidden sm:block">
+                            <FormattedDate dateString={order.createdAt} />
+                        </div>
                         <span className="font-medium text-left sm:text-right">R$ {order.totalAmount.toFixed(2)}</span>
                       </div>
                    </AccordionTrigger>
                     
                     <div 
                       className="flex gap-2 items-center justify-start"
-                      onClick={(e) => e.stopPropagation()} // Impede que o clique nos Selects acione o Accordion
+                      onClick={(e) => e.stopPropagation()} 
                     >
                          <Select
                             value={order.paymentStatus}
