@@ -113,7 +113,7 @@ export default function HomePageClient({ highlights, categories, items }: HomePa
 
       {/* Products */}
       <div className="flex flex-col gap-4">
-        {items.filter(item => activeCategory === 'Todos' || item.categoryId === activeCategory).map((item) => (
+        {filteredItems.map((item) => (
           <ProductCard 
             key={item.id} 
             product={item as any} 
@@ -129,4 +129,4 @@ export default function HomePageClient({ highlights, categories, items }: HomePa
       />
     </section>
   );
-} 
+}
