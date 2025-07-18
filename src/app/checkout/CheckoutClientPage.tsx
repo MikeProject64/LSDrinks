@@ -16,7 +16,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { getPaymentSettings, PaymentSettings, processCheckout } from '@/actions/payment-actions';
-import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { toast } from '@/hooks/use-toast';
 
 interface CheckoutClientPageProps {
@@ -180,24 +179,30 @@ export default function CheckoutClientPage({ stripePromise }: CheckoutClientPage
                           {selectedPayment !== 'stripe' && (
                               <div className="space-y-4">
                                   {paymentSettings?.isPaymentOnDeliveryEnabled && (
-                                      <Button
-                                          variant={selectedPayment === 'on_delivery' ? 'default' : 'outline'}
+                                      <button
                                           onClick={() => setSelectedPayment('on_delivery')}
-                                          className="w-full justify-start p-4 h-auto text-left"
+                                          className="w-full flex flex-col items-center justify-center p-6 rounded-lg border-2 border-muted hover:border-primary transition-colors bg-card"
                                       >
-                                          Pagar na Entrega
-                                          <span className="text-xs text-muted-foreground block">Pague com PIX ou dinheiro quando receber.</span>
-                                      </Button>
+                                          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-8 h-8 mb-2 text-primary">
+                                            <path d="M2 6h20M7 12h10M9 18h6" />
+                                            <path d="M2 6v12c0 1.1.9 2 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2z" />
+                                          </svg>
+                                          <span className="font-semibold">Pagar na Entrega</span>
+                                          <span className="text-xs text-muted-foreground">PIX ou dinheiro ao receber.</span>
+                                      </button>
                                   )}
-                                  {paymentSettings?.isLive && paymentSettings.stripe.publicKey && (
-                                      <Button
-                                          variant="outline"
-                                          onClick={() => setSelectedPayment('stripe')}
-                                          className="w-full justify-start p-4 h-auto text-left"
+                                  {paymentSettings?.isLive && paymentSettings.stripe?.publicKey && (
+                                      <button
+                                        onClick={() => setSelectedPayment('stripe')}
+                                        className="w-full flex flex-col items-center justify-center p-6 rounded-lg border-2 border-muted hover:border-primary transition-colors bg-card"
                                       >
-                                          Cartão de Crédito
-                                          <span className="text-xs text-muted-foreground block">Pagamento seguro com Stripe.</span>
-                                      </Button>
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-8 h-8 mb-2 text-primary">
+                                            <rect width="20" height="14" x="2" y="5" rx="2"/>
+                                            <line x1="2" x2="22" y1="10" y2="10"/>
+                                        </svg>
+                                        <span className="font-semibold">Cartão de Crédito</span>
+                                        <span className="text-xs text-muted-foreground">Pagamento seguro com Stripe.</span>
+                                      </button>
                                   )}
                                   {noPaymentMethods && (
                                       <p className='text-center text-muted-foreground'>Nenhum método de pagamento habilitado.</p>
