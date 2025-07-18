@@ -27,7 +27,6 @@ const FormattedDate = ({ dateString }: { dateString: string }) => {
     const [formattedDate, setFormattedDate] = useState<string | null>(null);
 
     useEffect(() => {
-        // This effect runs only on the client, preventing hydration mismatch
         setFormattedDate(new Date(dateString).toLocaleString("pt-BR", {
             day: '2-digit', month: '2-digit', year: 'numeric',
             hour: '2-digit', minute: '2-digit'
@@ -35,33 +34,34 @@ const FormattedDate = ({ dateString }: { dateString: string }) => {
     }, [dateString]);
 
     if (!formattedDate) {
-        // Render a skeleton or a non-locale-specific date on the server
         return <Skeleton className="h-4 w-36" />;
     }
 
     return <span>{formattedDate}</span>;
 }
 
-export default function OrderManager({ initialOrders }: { initialOrders: Order[] }) {
-  const [orders, setOrders] = useState<Order[]>(initialOrders);
+export default function OrderManager({ initialOrders: initialOrdersProp }: { initialOrders: Order[] }) {
+  const [orders, setOrders] = useState<Order[]>(initialOrdersProp);
   const [isPending, startTransition] = useTransition();
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [alertContent, setAlertContent] = useState({ title: '', description: '', onConfirm: () => {} });
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    fetchAndSetOrders();
+  }, []);
 
   const fetchAndSetOrders = async () => {
     setIsLoading(true);
-    startTransition(async () => {
-      try {
-        const updatedOrders = await getAllOrders();
-        setOrders(updatedOrders);
-      } catch (error) {
-        toast({ title: "Erro", description: "Falha ao recarregar os pedidos.", variant: "destructive" });
-      } finally {
-        setIsLoading(false);
-      }
-    });
+    try {
+      const updatedOrders = await getAllOrders();
+      setOrders(updatedOrders);
+    } catch (error) {
+      toast({ title: "Erro", description: "Falha ao recarregar os pedidos.", variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleStatusChange = (orderId: string, type: 'paymentStatus' | 'orderStatus', value: string) => {
@@ -69,7 +69,7 @@ export default function OrderManager({ initialOrders }: { initialOrders: Order[]
       try {
         await updateOrderStatus({ orderId, [type]: value });
         toast({ title: "Sucesso", description: "Status do pedido atualizado." });
-        await fetchAndSetOrders();
+        fetchAndSetOrders();
       } catch (error) {
         const e = error as Error;
         toast({ variant: "destructive", title: "Erro", description: e.message });
@@ -86,7 +86,7 @@ export default function OrderManager({ initialOrders }: { initialOrders: Order[]
           try {
             await deleteOrder(order.id);
             toast({ title: "Sucesso!", description: "Pedido excluído com sucesso."});
-            await fetchAndSetOrders();
+            fetchAndSetOrders();
           } catch (error) {
             const e = error as Error;
             toast({ variant: "destructive", title: "Erro!", description: e.message });
@@ -109,7 +109,7 @@ export default function OrderManager({ initialOrders }: { initialOrders: Order[]
             await bulkDeleteOrders(selectedOrderIds);
             toast({ title: "Sucesso!", description: `${selectedOrderIds.length} pedidos foram excluídos.` });
             setSelectedOrderIds([]);
-            await fetchAndSetOrders();
+            fetchAndSetOrders();
           } catch (error) {
             const e = error as Error;
             toast({ variant: "destructive", title: "Erro!", description: e.message });
@@ -132,7 +132,7 @@ export default function OrderManager({ initialOrders }: { initialOrders: Order[]
             await bulkUpdateOrders(selectedOrderIds, { [type]: value });
             toast({ title: "Sucesso!", description: 'Pedidos atualizados.' });
             setSelectedOrderIds([]);
-            await fetchAndSetOrders();
+            fetchAndSetOrders();
           } catch (error) {
             const e = error as Error;
             toast({ variant: "destructive", title: "Erro!", description: e.message });
@@ -144,7 +144,6 @@ export default function OrderManager({ initialOrders }: { initialOrders: Order[]
     });
     setIsAlertOpen(true);
   };
-
 
   const getPaymentStatusVariant = (status: string) => {
     switch (status) {
@@ -167,23 +166,25 @@ export default function OrderManager({ initialOrders }: { initialOrders: Order[]
 
   const isAllSelected = orders.length > 0 && selectedOrderIds.length === orders.length;
 
-  if (isLoading && orders.length === 0) {
-      return (
-        <Card>
-            <CardHeader>
-                <CardTitle>Histórico de Pedidos</CardTitle>
-                <CardDescription>Carregando pedidos...</CardDescription>
-            </CardHeader>
-            <CardContent>
-                <div className="space-y-4">
-                    <Skeleton className="h-12 w-full" />
-                    <Skeleton className="h-12 w-full" />
-                    <Skeleton className="h-12 w-full" />
-                </div>
-            </CardContent>
-        </Card>
-      )
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+            <CardTitle>Histórico de Pedidos</CardTitle>
+            <CardDescription>Carregando pedidos...</CardDescription>
+        </CardHeader>
+        <CardContent>
+            <div className="space-y-4">
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-12 w-full" />
+            </div>
+        </CardContent>
+      </Card>
+    )
   }
+
+  const gridClass = "grid items-center grid-cols-[auto_1fr_1fr_1fr_auto_auto_auto_auto] gap-x-4";
 
   return (
     <Card>
@@ -220,77 +221,83 @@ export default function OrderManager({ initialOrders }: { initialOrders: Order[]
         {orders.length === 0 ? (
           <div className="text-center text-muted-foreground py-8">Nenhum pedido encontrado.</div>
         ) : (
-          <Accordion type="multiple" className="w-full space-y-2">
-            <div className="flex items-center gap-4 p-4 border-b">
-                 <Checkbox 
+          <Accordion type="multiple" className="w-full">
+            <div className={`${gridClass} p-4 border-b font-semibold text-muted-foreground text-sm`}>
+                <Checkbox 
                     id="select-all"
                     checked={isAllSelected}
                     onCheckedChange={(checked) => {
                         setSelectedOrderIds(checked ? orders.map(o => o.id) : []);
                     }}
                  />
-                <div className="w-full grid grid-cols-2 md:grid-cols-6 items-center text-sm font-semibold text-muted-foreground gap-4">
-                    <span>Pedido</span>
-                    <span className="hidden md:block">Data</span>
-                    <span className="hidden md:block">Cliente</span>
-                    <span>Valor Total</span>
-                    <span>Pagamento</span>
-                    <span>Status</span>
-                </div>
-                <div className="w-8 md:w-[244px]"></div>
+                <div className="truncate">Pedido</div>
+                <div className="truncate hidden md:block">Cliente</div>
+                <div className="truncate">Valor</div>
+                <div className="truncate hidden md:block">Pagamento</div>
+                <div className="truncate hidden md:block">Status</div>
+                <div className="truncate col-span-2 text-center">Ações</div>
             </div>
             {orders.map((order) => (
-              <AccordionItem value={order.id} key={order.id} className="border-b-0">
-                 <div className="flex items-center gap-4 p-4 hover:bg-muted/50 rounded-lg">
-                    <Checkbox
-                        checked={selectedOrderIds.includes(order.id)}
-                        onCheckedChange={(checked) => {
-                            setSelectedOrderIds(
-                                checked ? [...selectedOrderIds, order.id] : selectedOrderIds.filter(id => id !== order.id)
-                            )
-                        }}
-                    />
-                    <AccordionTrigger className="flex-1 hover:no-underline p-0 w-full">
-                      <div className="w-full grid grid-cols-2 md:grid-cols-6 items-center text-sm font-normal gap-4 text-left">
-                        <span className="font-mono font-semibold truncate">#{order.id}</span>
-                        <div className="hidden md:block"><FormattedDate dateString={order.createdAt} /></div>
-                        <div className="hidden md:block truncate">{order.customer?.name || 'Não informado'}</div>
-                        <span className="font-medium">R$ {order.totalAmount.toFixed(2)}</span>
-                        <div><Badge className={getPaymentStatusVariant(order.paymentStatus)}>{order.paymentStatus}</Badge></div>
-                        <div><Badge variant={getOrderStatusVariant(order.orderStatus)}>{order.orderStatus}</Badge></div>
-                      </div>
-                    </AccordionTrigger>
-                    
-                    <div className="flex gap-2 items-center justify-start" onClick={(e) => e.stopPropagation()}>
-                         <Select
-                            value={order.paymentStatus}
-                            onValueChange={(value) => handleStatusChange(order.id, 'paymentStatus', value as PaymentStatus)}
-                            disabled={isPending || order.paymentStatus === 'Pago'}
-                            >
-                            <SelectTrigger className="h-8 w-auto min-w-[130px] gap-1 text-xs"><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                                {paymentStatusOptions.map(status => <SelectItem key={status} value={status}>{status}</SelectItem>)}
-                            </SelectContent>
-                        </Select>
-                        <Select
-                            value={order.orderStatus}
-                            onValueChange={(value) => handleStatusChange(order.id, 'orderStatus', value as OrderStatus)}
-                            disabled={isPending}
-                            >
-                            <SelectTrigger className="h-8 w-auto min-w-[110px] gap-1 text-xs"><SelectValue/></SelectTrigger>
-                            <SelectContent>
-                                {orderStatusOptions.map(status => <SelectItem key={status} value={status}>{status}</SelectItem>)}
-                            </SelectContent>
-                        </Select>
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" className="h-8 w-8 p-0"><MoreHorizontal className="h-4 w-4" /></Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                                <DropdownMenuLabel>Ações</DropdownMenuLabel>
-                                <DropdownMenuItem onClick={() => handleDelete(order)} className="text-red-500"><Trash2 className="mr-2 h-4 w-4"/>Excluir</DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
+              <AccordionItem value={order.id} key={order.id} className="border-b">
+                 <div className="w-full">
+                    <div className={`${gridClass} p-4 text-sm`}>
+                        <Checkbox
+                            checked={selectedOrderIds.includes(order.id)}
+                            onCheckedChange={(checked) => {
+                                setSelectedOrderIds(
+                                    checked ? [...selectedOrderIds, order.id] : selectedOrderIds.filter(id => id !== order.id)
+                                )
+                            }}
+                        />
+                        <AccordionTrigger className="p-0 hover:no-underline flex justify-start truncate">
+                            <div className="flex flex-col text-left">
+                                <span className="font-mono font-semibold">#{order.id}</span>
+                                <div className="md:hidden text-xs text-muted-foreground"><FormattedDate dateString={order.createdAt} /></div>
+                            </div>
+                        </AccordionTrigger>
+                        <div className="truncate hidden md:block">{order.customer?.name || 'Não informado'}</div>
+                        <span className="font-medium truncate">R$ {order.totalAmount.toFixed(2)}</span>
+                        
+                        <div className="hidden md:block">
+                            <Badge className={getPaymentStatusVariant(order.paymentStatus)}>{order.paymentStatus}</Badge>
+                        </div>
+                         <div className="hidden md:block">
+                            <Badge variant={getOrderStatusVariant(order.orderStatus)}>{order.orderStatus}</Badge>
+                        </div>
+
+                        <div className="flex gap-2 items-center" onClick={(e) => e.stopPropagation()}>
+                            <Select
+                                value={order.paymentStatus}
+                                onValueChange={(value) => handleStatusChange(order.id, 'paymentStatus', value as PaymentStatus)}
+                                disabled={isPending || order.paymentStatus === 'Pago'}
+                                >
+                                <SelectTrigger className="h-8 w-auto min-w-[130px] gap-1 text-xs"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                    {paymentStatusOptions.map(status => <SelectItem key={status} value={status}>{status}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                            <Select
+                                value={order.orderStatus}
+                                onValueChange={(value) => handleStatusChange(order.id, 'orderStatus', value as OrderStatus)}
+                                disabled={isPending}
+                                >
+                                <SelectTrigger className="h-8 w-auto min-w-[110px] gap-1 text-xs"><SelectValue/></SelectTrigger>
+                                <SelectContent>
+                                    {orderStatusOptions.map(status => <SelectItem key={status} value={status}>{status}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div onClick={(e) => e.stopPropagation()}>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" className="h-8 w-8 p-0"><MoreHorizontal className="h-4 w-4" /></Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                    <DropdownMenuLabel>Ações</DropdownMenuLabel>
+                                    <DropdownMenuItem onClick={() => handleDelete(order)} className="text-red-500"><Trash2 className="mr-2 h-4 w-4"/>Excluir</DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        </div>
                     </div>
                 </div>
 

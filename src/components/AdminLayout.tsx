@@ -4,16 +4,18 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { Home, Menu, Package, Package2, Tag, List, Star, CreditCard, Settings, ScrollText } from 'lucide-react';
+import { Home, Menu, Package, Package2, Tag, List, Star, CreditCard, Settings, ScrollText, PanelLeftClose, PanelRightClose } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './ui/accordion';
 import { useEffect, useState } from 'react';
 import { getSettings } from '@/actions/settings-actions';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [storeName, setStoreName] = useState('LSDrinks');
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   useEffect(() => {
     getSettings().then(settings => {
@@ -38,59 +40,81 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   
   const defaultValue = isProductsRouteActive ? "products" : "";
 
+  const renderNavLinks = (isTooltipProvider = false) => (
+    <>
+      {navItems.map((item) => {
+        const link = (
+           <Link
+            key={item.href}
+            href={item.href}
+            className={cn(
+              "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary",
+              pathname.startsWith(item.href) && "text-primary bg-muted",
+              isCollapsed && "justify-center"
+            )}
+          >
+            <item.icon className={cn("h-4 w-4", isCollapsed && "h-5 w-5")} />
+            <span className={cn(isCollapsed && "sr-only")}>{item.label}</span>
+          </Link>
+        );
+
+        return isTooltipProvider ? (
+            <TooltipProvider key={item.href} delayDuration={0}>
+                <Tooltip>
+                    <TooltipTrigger asChild>{link}</TooltipTrigger>
+                    {isCollapsed && <TooltipContent side="right">{item.label}</TooltipContent>}
+                </Tooltip>
+            </TooltipProvider>
+        ) : ( link )
+      })}
+       <Accordion type="single" collapsible defaultValue={defaultValue} className="w-full">
+        <AccordionItem value="products" className="border-b-0">
+          <AccordionTrigger className={cn(
+              "hover:no-underline px-3 py-2 text-muted-foreground hover:text-primary [&[data-state=open]]:text-primary",
+              isProductsRouteActive && "text-primary",
+              isCollapsed && "justify-center"
+          )}>
+              <div className='flex items-center gap-3'>
+                <Package className={cn("h-4 w-4", isCollapsed && "h-5 w-5")} />
+                <span className={cn(isCollapsed && "sr-only")}>Produtos</span>
+              </div>
+          </AccordionTrigger>
+          <AccordionContent className={cn("pl-8", isCollapsed && "hidden")}>
+              {productsNav.map((item) => (
+                <Link
+                    key={item.href}
+                    href={item.href}
+                    className={cn(
+                        "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary",
+                        pathname === item.href && "text-primary bg-muted"
+                    )}
+                    >
+                    <item.icon className="h-4 w-4" />
+                    {item.label}
+                </Link>
+            ))}
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
+    </>
+  );
+
   return (
-    <div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
+    <div className={cn(
+        "grid min-h-screen w-full transition-[grid-template-columns]",
+        isCollapsed ? "md:grid-cols-[70px_1fr]" : "md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]"
+    )}>
       <div className="hidden border-r bg-muted/40 md:block">
         <div className="flex h-full max-h-screen flex-col gap-2">
           <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
             <Link href="/" className="flex items-center gap-2 font-semibold">
               <Package2 className="h-6 w-6" />
-              <span className="">{storeName}</span>
+              <span className={cn(isCollapsed && "sr-only")}>{storeName}</span>
             </Link>
           </div>
-          <div className="flex-1">
+          <div className="flex-1 overflow-auto py-2">
             <nav className="grid items-start px-2 text-sm font-medium lg:px-4">
-              {navItems.map((item) => (
-                 <Link
-                  key={item.href}
-                  href={item.href}
-                  className={cn(
-                    "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary",
-                    pathname.startsWith(item.href) && "text-primary bg-muted"
-                  )}
-                >
-                  <item.icon className="h-4 w-4" />
-                  {item.label}
-                </Link>
-              ))}
-               <Accordion type="single" collapsible defaultValue={defaultValue} className="w-full">
-                <AccordionItem value="products" className="border-b-0">
-                  <AccordionTrigger className={cn(
-                      "hover:no-underline px-3 py-2 text-muted-foreground hover:text-primary [&[data-state=open]]:text-primary",
-                      isProductsRouteActive && "text-primary"
-                  )}>
-                     <div className='flex items-center gap-3'>
-                        <Package className="h-4 w-4" />
-                        <span>Produtos</span>
-                     </div>
-                  </AccordionTrigger>
-                  <AccordionContent className="pl-8">
-                     {productsNav.map((item) => (
-                        <Link
-                            key={item.href}
-                            href={item.href}
-                            className={cn(
-                                "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary",
-                                pathname === item.href && "text-primary bg-muted"
-                            )}
-                            >
-                            <item.icon className="h-4 w-4" />
-                            {item.label}
-                        </Link>
-                    ))}
-                  </AccordionContent>
-                </AccordionItem>
-              </Accordion>
+              {renderNavLinks(true)}
             </nav>
           </div>
         </div>
@@ -161,10 +185,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               </nav>
             </SheetContent>
           </Sheet>
-          <div className="w-full flex-1">
+          <div className="w-full flex-1 flex items-center gap-4">
+             <Button variant="outline" size="icon" className="hidden md:flex" onClick={() => setIsCollapsed(!isCollapsed)}>
+                 {isCollapsed ? <PanelRightClose className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
+                 <span className="sr-only">Recolher/Expandir menu</span>
+            </Button>
           </div>
         </header>
-        <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6">
+        <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6 overflow-auto">
           {children}
         </main>
       </div>
