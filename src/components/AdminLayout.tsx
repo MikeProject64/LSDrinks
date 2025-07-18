@@ -4,7 +4,7 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { Home, Menu, Package, Package2, Tag, Users, List, PlusCircle } from 'lucide-react';
+import { Home, Menu, Package, Package2, Tag, List, PlusCircle, Star, CreditCard } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './ui/accordion';
@@ -14,15 +14,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const navItems = [
     { href: '/admin/dashboard', label: 'Painel', icon: Home },
+    { href: '/admin/highlights', label: 'Destaques', icon: Star },
+    { href: '/admin/payment', label: 'Pagamento', icon: CreditCard },
   ];
 
   const productsNav = [
       { href: '/admin/items', label: 'Itens', icon: List },
-      { href: '/admin/items/new', label: 'Cadastrar Item', icon: PlusCircle },
       { href: '/admin/categories', label: 'Categorias', icon: Tag },
-  ]
+  ];
 
   const isProductsRouteActive = productsNav.some(item => pathname.startsWith(item.href));
+  
+  const defaultValue = isProductsRouteActive ? "products" : "";
 
   return (
     <div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
@@ -42,14 +45,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   href={item.href}
                   className={cn(
                     "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary",
-                    pathname === item.href && "text-primary bg-muted"
+                    pathname.startsWith(item.href) && "text-primary bg-muted"
                   )}
                 >
                   <item.icon className="h-4 w-4" />
                   {item.label}
                 </Link>
               ))}
-               <Accordion type="single" collapsible defaultValue={isProductsRouteActive ? "products" : ""} className="w-full">
+               <Accordion type="single" collapsible defaultValue={defaultValue} className="w-full">
                 <AccordionItem value="products" className="border-b-0">
                   <AccordionTrigger className={cn(
                       "hover:no-underline px-3 py-2 text-muted-foreground hover:text-primary [&[data-state=open]]:text-primary",
@@ -109,14 +112,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     href={item.href}
                     className={cn(
                       "mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground",
-                       pathname === item.href && "bg-muted text-foreground"
+                       pathname.startsWith(item.href) && "bg-muted text-foreground"
                     )}
                   >
                      <item.icon className="h-5 w-5" />
                     {item.label}
                   </Link>
                 ))}
-                 <Accordion type="single" collapsible defaultValue={isProductsRouteActive ? "products" : ""} className="w-full">
+                 <Accordion type="single" collapsible defaultValue={defaultValue} className="w-full">
                     <AccordionItem value="products" className="border-b-0">
                     <AccordionTrigger className={cn(
                         "hover:no-underline text-muted-foreground hover:text-foreground [&[data-state=open]]:text-foreground",
@@ -148,7 +151,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </SheetContent>
           </Sheet>
           <div className="w-full flex-1">
-            {/* Pode adicionar um search bar aqui no futuro */}
           </div>
         </header>
         <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6">

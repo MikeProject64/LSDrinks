@@ -32,7 +32,7 @@ const ProductModal: React.FC<ProductModalProps> = ({ product, isOpen, onClose })
   const handleAddToCart = () => {
     addToCart(product, quantity);
     toast({
-      title: `${quantity}x ${product.name} adicionado!`,
+      title: `${quantity}x ${product.title} adicionado!`,
       description: "Seu carrinho foi atualizado.",
     });
     onClose();
@@ -49,14 +49,14 @@ const ProductModal: React.FC<ProductModalProps> = ({ product, isOpen, onClose })
       <DialogContent className="w-11/12 sm:max-w-[425px] p-0">
         <div className="relative w-full h-48">
           <Image
-            src={product.image}
-            alt={product.name}
+            src={product.imageUrl}
+            alt={product.title}
             fill
             className="object-cover rounded-t-lg"
           />
         </div>
         <DialogHeader className="p-6 pb-2">
-          <DialogTitle className="text-2xl font-bold">{product.name}</DialogTitle>
+          <DialogTitle className="text-2xl font-bold">{product.title}</DialogTitle>
           <DialogDescription className="text-base">
             {product.description}
           </DialogDescription>

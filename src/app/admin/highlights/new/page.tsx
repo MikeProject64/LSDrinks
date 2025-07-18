@@ -1,23 +1,14 @@
-
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { addItem } from "@/actions/item-actions";
-import { getCategories } from "@/actions/category-actions";
+import { addHighlight } from "@/actions/highlight-actions";
 import AdminLayout from "@/components/AdminLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Card,
   CardContent,
@@ -32,80 +23,45 @@ import { useRouter } from "next/navigation";
 import { storage } from "@/lib/firebase";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
-const itemSchema = z.object({
+const highlightSchema = z.object({
   title: z.string().min(3, "O título deve ter pelo menos 3 caracteres."),
   description: z.string().min(10, "A descrição deve ter pelo menos 10 caracteres."),
-  price: z.coerce.number().positive("O preço deve ser um número positivo."),
-  categoryId: z.string().min(1, "A categoria é obrigatória."),
+  link: z.string().url("O link (URL) é inválido."),
   imageUrl: z.string().optional(),
   imageFile: z.instanceof(File).optional(),
 }).superRefine((data, ctx) => {
   const { imageUrl, imageFile } = data;
-  
   if (imageUrl && !z.string().url().safeParse(imageUrl).success) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.invalid_string,
-      validation: "url",
-      message: "A URL da imagem é inválida.",
-      path: ["imageUrl"],
-    });
+    ctx.addIssue({ code: z.ZodIssueCode.invalid_string, validation: "url", message: "A URL da imagem é inválida.", path: ["imageUrl"] });
   }
-
   if (!imageUrl && !imageFile) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: "É necessário fornecer uma URL ou um arquivo de imagem.",
-      path: ["imageUrl"],
-    });
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "É necessário fornecer uma URL ou um arquivo de imagem.", path: ["imageUrl"] });
   }
 });
 
-type ItemFormValues = z.infer<typeof itemSchema>;
+type HighlightFormValues = z.infer<typeof highlightSchema>;
 
-interface Category {
-  id: string;
-  name: string;
-}
-
-export default function NewItemPage() {
+export default function NewHighlightPage() {
   const { toast } = useToast();
   const router = useRouter();
-  const [categories, setCategories] = useState<Category[]>([]);
   const [imageFile, setImageFile] = useState<File | null>(null);
 
-  useEffect(() => {
-    async function fetchCategories() {
-      try {
-        const fetchedCategories = await getCategories();
-        setCategories(fetchedCategories);
-      } catch (error) {
-        toast({
-          variant: "destructive",
-          title: "Erro!",
-          description: "Não foi possível carregar as categorias.",
-        });
-      }
-    }
-    fetchCategories();
-  }, [toast]);
-
-  const form = useForm<ItemFormValues>({
-    resolver: zodResolver(itemSchema),
+  const form = useForm<HighlightFormValues>({
+    resolver: zodResolver(highlightSchema),
     defaultValues: {
       title: "",
       description: "",
-      price: 0,
-      categoryId: "",
+      link: "",
       imageUrl: "",
     },
   });
 
-  const onSubmit = async (data: ItemFormValues) => {
+  const onSubmit = async (data: HighlightFormValues) => {
     try {
       let finalImageUrl = data.imageUrl;
 
       if (imageFile) {
-        const storageRef = ref(storage, `items/${Date.now()}_${imageFile.name}`);
+        const storageRef = ref(storage, `highlights/${Date.now()}_${imageFile.name}`);
         await uploadBytes(storageRef, imageFile);
         finalImageUrl = await getDownloadURL(storageRef);
       }
@@ -117,24 +73,23 @@ export default function NewItemPage() {
       const dataToSave = {
         title: data.title,
         description: data.description,
-        price: data.price,
-        categoryId: data.categoryId,
+        link: data.link,
         imageUrl: finalImageUrl,
       };
 
-      await addItem(dataToSave);
+      await addHighlight(dataToSave);
       
       toast({
         title: "Sucesso!",
-        description: "O item foi cadastrado com sucesso.",
+        description: "O destaque foi cadastrado com sucesso.",
       });
       form.reset();
-      router.push('/admin/items');
+      router.push('/admin/highlights');
     } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Erro!",
-        description: error.message || "Não foi possível cadastrar o item.",
+        description: error.message || "Não foi possível cadastrar o destaque.",
       });
     }
   };
@@ -142,12 +97,12 @@ export default function NewItemPage() {
   return (
     <AdminLayout>
       <div className="flex items-center">
-        <h1 className="text-lg font-semibold md:text-2xl">Cadastrar Item</h1>
+        <h1 className="text-lg font-semibold md:text-2xl">Cadastrar Destaque</h1>
       </div>
       <Card>
         <CardHeader>
-          <CardTitle>Novo Item</CardTitle>
-          <CardDescription>Preencha os dados abaixo para adicionar um novo item ao cardápio.</CardDescription>
+          <CardTitle>Novo Destaque</CardTitle>
+          <CardDescription>Preencha os dados abaixo para adicionar um novo destaque.</CardDescription>
         </CardHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)}>
@@ -159,7 +114,7 @@ export default function NewItemPage() {
                   <FormItem>
                     <FormLabel>Título</FormLabel>
                     <FormControl>
-                      <Input placeholder="Ex: Elixir Cósmico" {...field} />
+                      <Input placeholder="Ex: Promoção de Verão" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -172,7 +127,7 @@ export default function NewItemPage() {
                   <FormItem>
                     <FormLabel>Descrição</FormLabel>
                     <FormControl>
-                      <Textarea placeholder="Uma bebida brilhante e doce que tem gosto de galáxia." {...field} />
+                      <Textarea placeholder="Descontos imperdíveis em todas as bebidas!" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -180,40 +135,16 @@ export default function NewItemPage() {
               />
               <FormField
                 control={form.control}
-                name="price"
+                name="link"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Preço</FormLabel>
+                    <FormLabel>Link (URL)</FormLabel>
                     <FormControl>
-                      <Input type="number" step="0.01" placeholder="12.50" {...field} />
+                      <Input placeholder="https://seusite.com/promocao" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
-              />
-              <FormField
-                  control={form.control}
-                  name="categoryId"
-                  render={({ field }) => (
-                      <FormItem>
-                          <FormLabel>Categoria</FormLabel>
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
-                              <FormControl>
-                                  <SelectTrigger>
-                                      <SelectValue placeholder="Selecione uma categoria" />
-                                  </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                  {categories.map((category) => (
-                                      <SelectItem key={category.id} value={category.id}>
-                                          {category.name}
-                                      </SelectItem>
-                                  ))}
-                              </SelectContent>
-                          </Select>
-                          <FormMessage />
-                      </FormItem>
-                  )}
               />
               <FormField
                 control={form.control}
@@ -252,11 +183,10 @@ export default function NewItemPage() {
                   </FormItem>
                 )}
               />
-
             </CardContent>
             <CardFooter>
               <Button type="submit" disabled={form.formState.isSubmitting}>
-                {form.formState.isSubmitting ? "Salvando..." : "Salvar Item"}
+                {form.formState.isSubmitting ? "Salvando..." : "Salvar Destaque"}
               </Button>
             </CardFooter>
           </form>
@@ -264,4 +194,4 @@ export default function NewItemPage() {
       </Card>
     </AdminLayout>
   );
-}
+} 

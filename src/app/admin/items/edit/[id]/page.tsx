@@ -1,11 +1,10 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { addItem } from "@/actions/item-actions";
+import { getItemById, updateItem } from "@/actions/item-actions";
 import { getCategories } from "@/actions/category-actions";
 import AdminLayout from "@/components/AdminLayout";
 import { Button } from "@/components/ui/button";
@@ -31,6 +30,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { storage } from "@/lib/firebase";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import Image from "next/image";
 
 const itemSchema = z.object({
   title: z.string().min(3, "O título deve ter pelo menos 3 caracteres."),
@@ -40,24 +40,8 @@ const itemSchema = z.object({
   imageUrl: z.string().optional(),
   imageFile: z.instanceof(File).optional(),
 }).superRefine((data, ctx) => {
-  const { imageUrl, imageFile } = data;
-  
-  if (imageUrl && !z.string().url().safeParse(imageUrl).success) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.invalid_string,
-      validation: "url",
-      message: "A URL da imagem é inválida.",
-      path: ["imageUrl"],
-    });
-  }
-
-  if (!imageUrl && !imageFile) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: "É necessário fornecer uma URL ou um arquivo de imagem.",
-      path: ["imageUrl"],
-    });
-  }
+    // A validação de imagem/URL só é necessária se não houver já uma imageUrl
+    // Esta lógica é simplificada, assumindo que a edição pode não exigir nova imagem
 });
 
 type ItemFormValues = z.infer<typeof itemSchema>;
@@ -67,42 +51,45 @@ interface Category {
   name: string;
 }
 
-export default function NewItemPage() {
+export default function EditItemPage({ params }: { params: { id: string } }) {
   const { toast } = useToast();
   const router = useRouter();
+  const itemId = params.id;
+  
   const [categories, setCategories] = useState<Category[]>([]);
   const [imageFile, setImageFile] = useState<File | null>(null);
-
-  useEffect(() => {
-    async function fetchCategories() {
-      try {
-        const fetchedCategories = await getCategories();
-        setCategories(fetchedCategories);
-      } catch (error) {
-        toast({
-          variant: "destructive",
-          title: "Erro!",
-          description: "Não foi possível carregar as categorias.",
-        });
-      }
-    }
-    fetchCategories();
-  }, [toast]);
+  const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null);
 
   const form = useForm<ItemFormValues>({
     resolver: zodResolver(itemSchema),
-    defaultValues: {
-      title: "",
-      description: "",
-      price: 0,
-      categoryId: "",
-      imageUrl: "",
-    },
   });
+
+  useEffect(() => {
+    if (!itemId) return;
+
+    // Fetch categories
+    getCategories().then(setCategories).catch(() => {
+        toast({ variant: "destructive", title: "Erro", description: "Falha ao carregar categorias." });
+    });
+
+    // Fetch item data
+    getItemById(itemId).then(itemData => {
+        if (itemData) {
+            form.reset(itemData);
+            if (itemData.imageUrl) {
+                setCurrentImageUrl(itemData.imageUrl);
+            }
+        }
+    }).catch(() => {
+        toast({ variant: "destructive", title: "Erro", description: "Falha ao carregar o item." });
+        router.push('/admin/items');
+    });
+
+  }, [itemId, form, router, toast]);
 
   const onSubmit = async (data: ItemFormValues) => {
     try {
-      let finalImageUrl = data.imageUrl;
+      let finalImageUrl = currentImageUrl;
 
       if (imageFile) {
         const storageRef = ref(storage, `items/${Date.now()}_${imageFile.name}`);
@@ -111,48 +98,43 @@ export default function NewItemPage() {
       }
       
       if (!finalImageUrl) {
-        throw new Error("URL da imagem não encontrada.");
+        throw new Error("A imagem é obrigatória.");
       }
-
+      
       const dataToSave = {
-        title: data.title,
-        description: data.description,
-        price: data.price,
-        categoryId: data.categoryId,
-        imageUrl: finalImageUrl,
+          ...data,
+          imageUrl: finalImageUrl,
       };
 
-      await addItem(dataToSave);
+      await updateItem(itemId, dataToSave);
       
       toast({
         title: "Sucesso!",
-        description: "O item foi cadastrado com sucesso.",
+        description: "O item foi atualizado com sucesso.",
       });
-      form.reset();
       router.push('/admin/items');
     } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Erro!",
-        description: error.message || "Não foi possível cadastrar o item.",
+        description: error.message || "Não foi possível atualizar o item.",
       });
     }
   };
 
   return (
     <AdminLayout>
-      <div className="flex items-center">
-        <h1 className="text-lg font-semibold md:text-2xl">Cadastrar Item</h1>
-      </div>
+      <h1 className="text-lg font-semibold md:text-2xl">Editar Item</h1>
       <Card>
         <CardHeader>
-          <CardTitle>Novo Item</CardTitle>
-          <CardDescription>Preencha os dados abaixo para adicionar um novo item ao cardápio.</CardDescription>
+          <CardTitle>Editando Item</CardTitle>
+          <CardDescription>Altere os dados para atualizar o item.</CardDescription>
         </CardHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)}>
             <CardContent className="space-y-4">
-              <FormField
+              {/* Fields: title, description, price, categoryId */}
+               <FormField
                 control={form.control}
                 name="title"
                 render={({ field }) => (
@@ -197,7 +179,7 @@ export default function NewItemPage() {
                   render={({ field }) => (
                       <FormItem>
                           <FormLabel>Categoria</FormLabel>
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <Select onValueChange={field.onChange} value={field.value}>
                               <FormControl>
                                   <SelectTrigger>
                                       <SelectValue placeholder="Selecione uma categoria" />
@@ -215,12 +197,20 @@ export default function NewItemPage() {
                       </FormItem>
                   )}
               />
+
+              {currentImageUrl && (
+                <div className="space-y-2">
+                    <FormLabel>Imagem Atual</FormLabel>
+                    <Image src={currentImageUrl} alt="Imagem atual do item" width={100} height={100} className="rounded-md" />
+                </div>
+              )}
+
               <FormField
                 control={form.control}
                 name="imageFile"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Arquivo da Imagem</FormLabel>
+                    <FormLabel>Substituir Imagem (Opcional)</FormLabel>
                     <FormControl>
                       <Input 
                         type="file" 
@@ -238,25 +228,27 @@ export default function NewItemPage() {
                   </FormItem>
                 )}
               />
-               <div className="text-center my-2">OU</div>
                <FormField
                 control={form.control}
                 name="imageUrl"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>URL da Imagem</FormLabel>
+                    <FormLabel>Ou use uma nova URL de Imagem (Opcional)</FormLabel>
                     <FormControl>
-                      <Input placeholder="https://exemplo.com/imagem.jpg" {...field} />
+                      <Input placeholder="https://exemplo.com/imagem.jpg" {...field} 
+                        onChange={(e) => {
+                          field.onChange(e);
+                          setCurrentImageUrl(e.target.value);
+                        }}/>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-
             </CardContent>
             <CardFooter>
               <Button type="submit" disabled={form.formState.isSubmitting}>
-                {form.formState.isSubmitting ? "Salvando..." : "Salvar Item"}
+                {form.formState.isSubmitting ? "Salvando..." : "Salvar Alterações"}
               </Button>
             </CardFooter>
           </form>
@@ -264,4 +256,4 @@ export default function NewItemPage() {
       </Card>
     </AdminLayout>
   );
-}
+} 

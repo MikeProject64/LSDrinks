@@ -2,16 +2,19 @@
 'use server';
 
 import { z } from 'zod';
-import { db } from '@/lib/firebase';
-import { collection, addDoc, getDocs, serverTimestamp, query, orderBy, Timestamp } from 'firebase/firestore';
+import { db, storage } from '@/lib/firebase';
+import { collection, addDoc, getDocs, serverTimestamp, query, orderBy, Timestamp, doc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { getCategories } from './category-actions';
 
 const itemSchema = z.object({
   title: z.string().min(3, "O título deve ter pelo menos 3 caracteres."),
   description: z.string().min(10, "A descrição deve ter pelo menos 10 caracteres."),
   price: z.number().positive("O preço deve ser um número positivo."),
+  categoryId: z.string().min(1, "A categoria é obrigatória."),
+  imageUrl: z.string().url("A URL da imagem é inválida."),
 });
 
-export async function addItem(data: { title: string; description: string; price: number }) {
+export async function addItem(data: z.infer<typeof itemSchema>) {
   const validation = itemSchema.safeParse(data);
 
   if (!validation.success) {
@@ -33,23 +36,81 @@ export async function addItem(data: { title: string; description: string; price:
 
 
 export async function getItems() {
-    try {
-      const q = query(collection(db, "items"), orderBy("createdAt", "desc"));
-      const querySnapshot = await getDocs(q);
-      const items: any[] = [];
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        // Correção: Converte Timestamps para um formato serializável (string ISO).
-        const serializableData = Object.fromEntries(
-            Object.entries(data).map(([key, value]) => 
-                value instanceof Timestamp ? [key, value.toDate().toISOString()] : [key, value]
-            )
-        );
-        items.push({ id: doc.id, ...serializableData });
-      });
-      return items;
-    } catch (e) {
-      console.error("Error fetching documents: ", e);
-      throw new Error('Falha ao buscar itens.');
-    }
+  try {
+    const categoriesSnapshot = await getDocs(collection(db, "categories"));
+    const categories = new Map(categoriesSnapshot.docs.map(doc => [doc.id, doc.data().name]));
+
+    const itemsQuery = query(collection(db, "items"), orderBy("createdAt", "desc"));
+    const itemsSnapshot = await getDocs(itemsQuery);
+    
+    const items = itemsSnapshot.docs.map(doc => {
+      const data = doc.data();
+      
+      // Converte Timestamps e garante a estrutura correta
+      const itemData = {
+        id: doc.id,
+        title: data.title || '',
+        description: data.description || '',
+        price: data.price || 0,
+        imageUrl: data.imageUrl || '',
+        categoryId: data.categoryId || '',
+        categoryName: categories.get(data.categoryId) || 'Sem categoria',
+        createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
+      };
+
+      return itemData;
+    });
+
+    return items;
+  } catch (e) {
+    console.error("Error fetching documents: ", e);
+    throw new Error('Falha ao buscar itens.');
   }
+}
+
+export async function getItemById(id: string) {
+    if (!id) throw new Error('ID do item é obrigatório.');
+    try {
+        const itemRef = doc(db, 'items', id);
+        const docSnap = await getDoc(itemRef);
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            return {
+                id: docSnap.id,
+                ...data,
+                createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : null,
+            };
+        }
+        throw new Error('Item não encontrado.');
+    } catch (e) {
+        console.error("Error fetching document: ", e);
+        throw new Error('Falha ao buscar o item.');
+    }
+}
+
+export async function updateItem(id: string, data: z.infer<typeof itemSchema>) {
+    if (!id) throw new Error('ID do item é obrigatório.');
+    const validation = itemSchema.safeParse(data);
+    if (!validation.success) throw new Error('Dados do item inválidos.');
+
+    try {
+        const itemRef = doc(db, 'items', id);
+        await updateDoc(itemRef, validation.data);
+        return { success: true };
+    } catch (e) {
+        console.error("Error updating document: ", e);
+        throw new Error('Falha ao atualizar o item.');
+    }
+}
+
+export async function deleteItem(id: string) {
+    if (!id) throw new Error('ID do item é obrigatório.');
+    try {
+        const itemRef = doc(db, 'items', id);
+        await deleteDoc(itemRef);
+        return { success: true };
+    } catch (e) {
+        console.error("Error deleting document: ", e);
+        throw new Error('Falha ao excluir o item.');
+    }
+}

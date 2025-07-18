@@ -1,0 +1,17 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Regra geral para todos os arquivos
+    match /{allPaths=**} {
+      
+      // Qualquer pessoa pode ler os arquivos (imagens, etc.)
+      allow read: if true;
+      
+      // Qualquer pessoa pode escrever/fazer upload.
+      // Em produção, isso deve ser restrito a usuários autenticados.
+      // Ex: allow write: if request.auth != null;
+      allow write: if true;
+    }
+  }
+} 

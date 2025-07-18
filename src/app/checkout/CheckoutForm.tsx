@@ -1,109 +1,103 @@
-"use client";
+'use client';
 
-import { useCart } from "@/context/CartContext";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import Image from "next/image";
-import { useToast } from "@/hooks/use-toast";
-import { useRouter } from "next/navigation";
+import { useState } from 'react';
+import { useStripe, useElements, CardElement } from '@stripe/react-stripe-js';
+import { useCart } from '@/context/CartContext';
+import { processCheckout } from '@/actions/payment-actions';
+import { Button } from '@/components/ui/button';
+import { toast } from '@/hooks/use-toast';
+import { useRouter } from 'next/navigation';
+
+const cardElementOptions = {
+  style: {
+    base: {
+      iconColor: '#aab7c4',
+      color: '#fff',
+      fontSize: '16px',
+      fontFamily: '"Helvetica Neue", Helvetica, sans-serif',
+      fontSmoothing: 'antialiased',
+      '::placeholder': {
+        color: '#aab7c4',
+      },
+    },
+    invalid: {
+      iconColor: '#ffc7ee',
+      color: '#ffc7ee',
+    },
+  },
+  hidePostalCode: true,
+};
 
 export default function CheckoutForm() {
-  const { items, cartTotal, clearCart } = useCart();
-  const { toast } = useToast();
+  const stripe = useStripe();
+  const elements = useElements();
+  const { items, totalWithFee, clearCart } = useCart();
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const router = useRouter();
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    
-    // Simulate payment processing
-    toast({
-      title: "Pagamento realizado com sucesso!",
-      description: "Seu pedido foi realizado. Obrigado pela sua compra.",
+    setIsLoading(true);
+    setErrorMessage(null);
+
+    if (!stripe || !elements) {
+      setErrorMessage("Stripe não foi carregado corretamente.");
+      setIsLoading(false);
+      return;
+    }
+
+    const cardElement = elements.getElement(CardElement);
+    if (!cardElement) {
+      setErrorMessage("Elemento de cartão não encontrado.");
+      setIsLoading(false);
+      return;
+    }
+
+    const { error, paymentMethod } = await stripe.createPaymentMethod({
+      type: 'card',
+      card: cardElement,
     });
 
-    clearCart();
-    
-    setTimeout(() => {
-        router.push('/');
-    }, 2000)
+    if (error) {
+      setErrorMessage(error.message || "Ocorreu um erro ao criar o método de pagamento.");
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const result = await processCheckout({
+        items,
+        totalAmount: totalWithFee,
+        paymentMethodId: paymentMethod.id,
+      });
+
+      if (result.success) {
+        toast({ title: 'Sucesso!', description: 'Seu pedido foi realizado com sucesso.' });
+        clearCart();
+        router.push('/orders'); // Redireciona para a página de pedidos
+      } else {
+         throw new Error('A transação falhou.');
+      }
+    } catch (err) {
+      const error = err as Error;
+      setErrorMessage(error.message);
+      toast({ title: 'Erro no Pagamento', description: error.message, variant: 'destructive' });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  if (items.length === 0) {
-    return <div className="text-center text-muted-foreground">Seu carrinho está vazio. Redirecionando para a página inicial...</div>;
-  }
-
   return (
-    <div className="grid md:grid-cols-2 gap-12">
-      <div>
-        <Card>
-          <CardHeader>
-            <CardTitle className="font-headline">Resumo do Pedido</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {items.map((item) => (
-              <div key={item.id} className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <Image
-                    src={item.image}
-                    alt={item.name}
-                    width={48}
-                    height={48}
-                    className="rounded-md"
-                    data-ai-hint={item.dataAiHint}
-                  />
-                  <div>
-                    <p className="font-semibold">{item.name}</p>
-                    <p className="text-sm text-muted-foreground">Qtd: {item.quantity}</p>
-                  </div>
-                </div>
-                <p className="font-semibold">R${(item.price * item.quantity).toFixed(2)}</p>
-              </div>
-            ))}
-          </CardContent>
-          <CardFooter className="flex justify-between font-bold text-lg border-t pt-4">
-            <p>Total</p>
-            <p>R${cartTotal.toFixed(2)}</p>
-          </CardFooter>
-        </Card>
+    <form onSubmit={handleSubmit} className="space-y-6">
+       <h2 className="text-xl font-semibold">Pagamento com Cartão</h2>
+      <div className="p-4 border rounded-lg bg-background">
+        <CardElement options={cardElementOptions} />
       </div>
-      <div>
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="font-headline">Entrega & Pagamento</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Nome Completo</Label>
-                <Input id="name" placeholder="João da Silva" required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="address">Endereço</Label>
-                <Input id="address" placeholder="Rua das Bebidas, 123" required />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="city">Cidade</Label>
-                  <Input id="city" placeholder="São Paulo" required />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="zip">CEP</Label>
-                  <Input id="zip" placeholder="01000-000" required />
-                </div>
-              </div>
-               <div className="space-y-2 pt-4">
-                <Label htmlFor="card">Informações do Cartão (Simulado)</Label>
-                <Input id="card" placeholder="**** **** **** 1234" required />
-              </div>
-            </CardContent>
-          </Card>
-          <Button type="submit" size="lg" className="w-full bg-accent text-accent-foreground hover:bg-accent/90">
-            Pagar R${cartTotal.toFixed(2)}
-          </Button>
-        </form>
-      </div>
-    </div>
+      {errorMessage && <div className="text-red-500 text-sm font-medium">{errorMessage}</div>}
+      <Button type="submit" disabled={!stripe || isLoading || items.length === 0} className="w-full" size="lg">
+        {isLoading ? 'Processando...' : `Pagar R$ ${totalWithFee.toFixed(2)}`}
+      </Button>
+    </form>
   );
 }

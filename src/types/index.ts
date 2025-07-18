@@ -1,11 +1,12 @@
 export type Product = {
   id: string;
-  name: string;
+  title: string;
   description: string;
   price: number;
-  image: string;
-  tags?: string[]; // Opcional: selos como 'Novo', 'Mais Vendido'
-  dataAiHint: string;
+  imageUrl: string;
+  categoryId: string;
+  categoryName?: string; // Opcional, vindo da junção nas actions
+  tags?: string[];
 };
 
 export type CartItem = Product & {
