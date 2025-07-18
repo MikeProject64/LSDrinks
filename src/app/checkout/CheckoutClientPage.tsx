@@ -139,7 +139,6 @@ const StripeForm = ({ onSuccess, deliveryInfo, totalAmount, orderId }: {
 
     return (
         <form onSubmit={handleSubmit} className="space-y-6">
-            <CartSummary />
             <div className="border-t border-dashed pt-6">
                 <h3 className="text-lg font-semibold mb-4">Dados do Cartão</h3>
                 <div>
@@ -311,11 +310,11 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
     );
   }
   
-  const stepTitles: Record<Step, string> = {
-    summary: '1. Resumo do Pedido',
-    delivery: '2. Informações de Entrega',
-    payment: '3. Método de Pagamento',
-    finalizing: 'Finalizando Pedido...'
+  const stepContent: Record<Step, { title: string, description: string }> = {
+    summary: { title: 'Meu pedido', description: 'Confira os detalhes do seu pedido' },
+    delivery: { title: 'Endereço', description: 'Endereço para entrega e telefone para contato' },
+    payment: { title: 'Pagamento', description: 'Escolha o metodo de pagamento desejado' },
+    finalizing: { title: 'Finalizando Pedido...', description: 'Aguarde um momento.' }
   };
 
   const renderContent = () => {
@@ -421,12 +420,18 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
     }
   }
 
-  const shouldShowTitle = step !== 'finalizing' && selectedPayment !== 'stripe';
+  const shouldShowHeader = step !== 'finalizing' && selectedPayment !== 'stripe';
+  const currentStepContent = stepContent[step];
 
   return (
     <>
       <div className="container mx-auto px-4 pt-8 pb-24 max-w-2xl space-y-8">
-        {shouldShowTitle && <h1 className="text-3xl font-bold text-center">{stepTitles[step]}</h1>}
+        {shouldShowHeader && (
+          <div className="text-center">
+            <h1 className="text-3xl font-bold">{currentStepContent.title}</h1>
+            <h5 className="text-muted-foreground mt-2">{currentStepContent.description}</h5>
+          </div>
+        )}
         <div className="border rounded-lg p-6 sm:p-8">
           {renderContent()}
         </div>
