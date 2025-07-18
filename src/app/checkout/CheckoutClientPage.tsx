@@ -44,6 +44,25 @@ const saveOrderIdLocally = (orderId: string) => {
     }
 };
 
+const saveDeliveryInfoLocally = (info: DeliveryFormValues) => {
+    try {
+        localStorage.setItem('deliveryInfo', JSON.stringify(info));
+    } catch (e) {
+        console.error("Failed to save delivery info to local storage", e);
+    }
+};
+
+const getDeliveryInfoFromLocal = (): DeliveryFormValues | null => {
+    try {
+        const savedInfo = localStorage.getItem('deliveryInfo');
+        return savedInfo ? JSON.parse(savedInfo) : null;
+    } catch (e) {
+        console.error("Failed to get delivery info from local storage", e);
+        return null;
+    }
+};
+
+
 const StripeForm = ({ onFinalizing, onSuccess, deliveryInfo, totalAmount, orderId }: { 
     onFinalizing: () => void; 
     onSuccess: (orderId: string) => void;
@@ -177,7 +196,7 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
   };
 
   useEffect(() => {
-    async function loadPaymentSettings() {
+    async function loadInitialData() {
       setIsLoading(true);
       try {
         const settings = await getPaymentSettings();
@@ -185,15 +204,21 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
         if (settings?.isLive && settings.stripe?.publicKey) {
             setStripePromise(loadStripe(settings.stripe.publicKey));
         }
+
+        const savedDeliveryInfo = getDeliveryInfoFromLocal();
+        if (savedDeliveryInfo) {
+            deliveryForm.reset(savedDeliveryInfo);
+        }
+
       } catch (error) {
-        console.error("Failed to load payment settings", error);
+        console.error("Failed to load initial data", error);
         toast({ title: "Erro", description: "Não foi possível carregar as configurações.", variant: "destructive" });
       } finally {
         setIsLoading(false);
       }
     }
-    loadPaymentSettings();
-  }, []);
+    loadInitialData();
+  }, [deliveryForm]);
 
   const prepareStripePayment = () => {
     if (items.length > 0) {
@@ -215,6 +240,7 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
 
   const onDeliverySubmit = (data: DeliveryFormValues) => {
     setDeliveryInfo(data);
+    saveDeliveryInfoLocally(data); // Salva as informações no momento do envio
     setStep('payment');
   }
 
@@ -246,6 +272,7 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
 
       if (result.success && result.orderId) {
         saveOrderIdLocally(result.orderId);
+        saveDeliveryInfoLocally(deliveryInfo); // Salva após pedido bem sucedido
         toast({ title: 'Sucesso!', description: 'Seu pedido foi realizado e será pago na entrega.' });
         clearCart();
         router.push('/orders');
@@ -260,6 +287,9 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
   };
   
   const handleStripeSuccess = (orderId: string) => {
+    if(deliveryInfo) {
+        saveDeliveryInfoLocally(deliveryInfo); // Salva após pedido bem sucedido
+    }
     saveOrderIdLocally(orderId);
     toast({ title: 'Sucesso!', description: 'Seu pedido foi realizado com sucesso.' });
     clearCart();
