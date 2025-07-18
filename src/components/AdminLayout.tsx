@@ -4,7 +4,7 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { Home, Menu, Package, Package2, Tag, List, Star, CreditCard, Settings } from 'lucide-react';
+import { Home, Menu, Package, Package2, Tag, List, Star, CreditCard, Settings, ScrollText } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './ui/accordion';
@@ -23,6 +23,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const navItems = [
     { href: '/admin/dashboard', label: 'Painel', icon: Home },
+    { href: '/admin/orders', label: 'Pedidos', icon: ScrollText },
     { href: '/admin/highlights', label: 'Destaques', icon: Star },
     { href: '/admin/payment', label: 'Pagamento', icon: CreditCard },
     { href: '/admin/settings', label: 'Configurações', icon: Settings },
