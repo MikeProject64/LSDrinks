@@ -192,22 +192,23 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
     loadPaymentSettings();
   }, []);
 
-  useEffect(() => {
-    if (step === 'payment' && items.length > 0) {
+  const prepareStripePayment = () => {
+    if (items.length > 0) {
         setIsLoading(true);
         createPaymentIntent({ items })
             .then(intent => {
                 setClientSecret(intent.clientSecret);
                 setStripeTotal(intent.totalAmount);
                 setStripeOrderId(intent.orderId);
+                setSelectedPayment('stripe');
             })
             .catch(error => {
                 toast({ title: "Erro de Pagamento", description: error.message, variant: "destructive" });
-                setStep('delivery'); // Go back if intent fails
+                setSelectedPayment(null);
             })
             .finally(() => setIsLoading(false));
     }
-  }, [step, items]);
+  }
 
   const onDeliverySubmit = (data: DeliveryFormValues) => {
     setDeliveryInfo(data);
@@ -311,36 +312,62 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
             )
         case 'payment':
             const noPaymentMethods = !paymentSettings?.isLive && !paymentSettings.isPaymentOnDeliveryEnabled;
+            if(isLoading || !deliveryInfo) return <p>Carregando...</p>;
+
+            if (selectedPayment === 'stripe') {
+                return (
+                    <div className="space-y-8">
+                       <CartSummary />
+                       <div className="border-t border-dashed pt-8">
+                        {clientSecret && stripePromise && stripeOrderId ? (
+                            <Elements stripe={stripePromise} options={{ clientSecret, appearance }}>
+                                <StripeCheckoutForm
+                                deliveryInfo={deliveryInfo}
+                                onSuccess={handleStripeSuccess}
+                                onFinalizing={() => setStep('finalizing')}
+                                totalAmount={stripeTotal}
+                                orderId={stripeOrderId}
+                                />
+                            </Elements>
+                        ) : <p>Carregando formulário de pagamento...</p>}
+                       </div>
+                        <Button variant="outline" onClick={() => setSelectedPayment(null)} className="w-full sm:w-auto">
+                            Voltar para métodos de pagamento
+                        </Button>
+                    </div>
+                )
+            }
+            
             return (
               <div className="space-y-8">
-                  {isLoading || !deliveryInfo ? <p>Carregando...</p> : (
-                      <div className="space-y-4">
-                          {paymentSettings?.isPaymentOnDeliveryEnabled && (
-                              <Button variant="outline" size="lg" className="w-full h-auto py-4 flex flex-col items-center justify-center" onClick={handlePaymentOnDelivery}>
-                                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-8 h-8 mb-2 text-primary"><path d="M2 6h20M7 12h10M9 18h6" /><path d="M2 6v12c0 1.1.9 2 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2z" /></svg>
-                                  <span className="font-semibold">Pagar na Entrega</span>
-                                  <span className="text-xs text-muted-foreground">PIX ou dinheiro ao receber.</span>
-                              </Button>
-                          )}
-                          {clientSecret && stripePromise && stripeOrderId && paymentSettings?.isLive && (
-                               <Elements stripe={stripePromise} options={{ clientSecret, appearance }}>
-                                  <StripeCheckoutForm
-                                    deliveryInfo={deliveryInfo}
-                                    onSuccess={handleStripeSuccess}
-                                    onFinalizing={() => setStep('finalizing')}
-                                    totalAmount={stripeTotal}
-                                    orderId={stripeOrderId}
-                                  />
-                               </Elements>
-                          )}
-                          {noPaymentMethods && (
-                              <p className='text-center text-muted-foreground'>Nenhum método de pagamento habilitado.</p>
-                          )}
-                      </div>
-                  )}
-                  <div className="flex flex-col-reverse sm:flex-row justify-between gap-4">
-                       <Button variant="outline" onClick={() => setStep('delivery')} className="w-full sm:w-auto">Voltar</Button>
-                  </div>
+                    <div className="space-y-4">
+                        {paymentSettings?.isPaymentOnDeliveryEnabled && (
+                            <button className="w-full p-4 border rounded-lg text-left hover:bg-muted/50 transition-colors" onClick={handlePaymentOnDelivery}>
+                                <div className="flex items-center gap-4">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-10 h-10 text-primary shrink-0"><path d="M2 6h20M7 12h10M9 18h6" /><path d="M2 6v12c0 1.1.9 2 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2z" /></svg>
+                                    <div>
+                                        <span className="font-semibold text-lg">Pagar na Entrega</span>
+                                        <p className="text-sm text-muted-foreground">Pague com PIX ou dinheiro ao receber.</p>
+                                    </div>
+                                </div>
+                            </button>
+                        )}
+                        {paymentSettings?.isLive && (
+                           <button className="w-full p-4 border rounded-lg text-left hover:bg-muted/50 transition-colors" onClick={prepareStripePayment}>
+                                <div className="flex items-center gap-4">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-10 h-10 text-primary shrink-0"><rect width="20" height="14" x="2" y="5" rx="2" /><line x1="2" x2="22" y1="10" y2="10" /></svg>
+                                    <div>
+                                        <span className="font-semibold text-lg">Cartão de Crédito</span>
+                                        <p className="text-sm text-muted-foreground">Pagamento seguro via Stripe.</p>
+                                    </div>
+                                </div>
+                            </button>
+                        )}
+                        {noPaymentMethods && (
+                            <p className='text-center text-muted-foreground'>Nenhum método de pagamento habilitado.</p>
+                        )}
+                    </div>
+                  <Button variant="outline" onClick={() => setStep('delivery')} className="w-full sm:w-auto">Voltar</Button>
               </div>
             )
         case 'finalizing':
@@ -356,7 +383,7 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
   }
 
   return (
-    <div className="container mx-auto px-4 pt-4 pb-8 max-w-2xl space-y-8">
+    <div className="container mx-auto px-4 pt-8 pb-8 max-w-2xl space-y-8">
       <h1 className="text-3xl font-bold text-center">{stepTitles[step]}</h1>
       <div className="border rounded-lg p-6 sm:p-8">
         {renderContent()}
