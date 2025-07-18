@@ -18,7 +18,7 @@ const paymentSettingsSchema = z.object({
     secretKey: z.string().optional(),
   }).optional(),
   isPaymentOnDeliveryEnabled: z.boolean().default(false),
-  pixKey: z.string().optional(), // Nova chave PIX
+  pixKey: z.string().optional(),
 });
 
 export type PaymentSettings = z.infer<typeof paymentSettingsSchema>;
@@ -47,7 +47,6 @@ export async function getPaymentSettings(): Promise<PaymentSettings | null> {
     const docSnap = await getDoc(settingsRef);
 
     if (docSnap.exists()) {
-      // Validar os dados do banco de dados com o nosso esquema
       const data = docSnap.data();
       const validation = paymentSettingsSchema.safeParse(data);
       if (validation.success) {
@@ -57,7 +56,7 @@ export async function getPaymentSettings(): Promise<PaymentSettings | null> {
          return null;
       }
     }
-    return null; // Nenhuma configuração encontrada
+    return null; 
   } catch (e) {
     console.error("Error fetching payment settings: ", e);
     throw new Error('Falha ao buscar as configurações de pagamento.');
@@ -68,19 +67,13 @@ const checkoutSchema = z.object({
   items: z.array(z.any()),
   totalAmount: z.number(),
   paymentMethod: z.enum(['on_delivery', 'stripe']),
-  paymentDetails: z.string(), // 'PIX', 'Dinheiro (Troco para R$ X)', 'Pago com Cartão'
+  paymentDetails: z.string(), 
   customerName: z.string(),
   customerPhone: z.string(),
   customerAddress: z.string(),
-  orderId: z.string(),
+  orderId: z.string(), // O ID do pedido agora é obrigatório
   stripePaymentIntentId: z.string().optional(),
 });
-
-function generateOrderId() {
-  const letter = String.fromCharCode(65 + Math.floor(Math.random() * 26)); // A-Z
-  const numbers = Math.floor(1000 + Math.random() * 9000); // 1000-9999
-  return `${letter}${numbers}`;
-}
 
 export async function saveOrder(data: z.infer<typeof checkoutSchema>) {
   const validation = checkoutSchema.safeParse(data);
@@ -98,7 +91,7 @@ export async function saveOrder(data: z.infer<typeof checkoutSchema>) {
   }
 
   const orderData = {
-    id: orderId,
+    id: orderId, // Usa o ID do pedido fornecido
     items,
     totalAmount,
     customer: {
@@ -113,6 +106,7 @@ export async function saveOrder(data: z.infer<typeof checkoutSchema>) {
   };
 
   try {
+    // Usa setDoc com o orderId como identificador do documento
     await setDoc(doc(db, 'orders', orderId), orderData);
     return { success: true, orderId };
   } catch (e) {
@@ -153,7 +147,6 @@ export async function getOrdersByIds(ids: string[]) {
   
     try {
       const orders: any[] = [];
-      // Firestore 'in' query has a limit of 30 elements, so we batch the requests
       for (let i = 0; i < ids.length; i += 30) {
         const batchIds = ids.slice(i, i + 30);
         const q = query(collection(db, "orders"), where(documentId(), "in", batchIds));
@@ -173,7 +166,6 @@ export async function getOrdersByIds(ids: string[]) {
         });
       }
       
-      // Sort orders by creation date descending, as the batching might mess up the order
       orders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   
       return orders;

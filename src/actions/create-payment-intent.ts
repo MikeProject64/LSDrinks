@@ -11,8 +11,8 @@ const intentSchema = z.object({
   items: z.array(z.any()),
 });
 
-// Esta função não precisa mais calcular o total aqui, pois faremos isso
-// de forma segura no servidor para evitar manipulação do cliente.
+// A função agora retorna o orderId gerado para ser usado no metadata do Stripe
+// e para salvar o pedido no banco de dados posteriormente.
 export async function createPaymentIntent(data: { items: CartItem[] }): Promise<{ clientSecret: string; totalAmount: number; orderId: string; }> {
     const validation = intentSchema.safeParse(data);
     if (!validation.success) {
@@ -24,7 +24,6 @@ export async function createPaymentIntent(data: { items: CartItem[] }): Promise<
         throw new Error("O carrinho está vazio.");
     }
   
-    // Buscando as configurações no servidor para garantir segurança
     const paymentSettings = await getPaymentSettings();
     const storeSettings = await getSettings();
 
@@ -34,11 +33,11 @@ export async function createPaymentIntent(data: { items: CartItem[] }): Promise<
 
     const stripe = new Stripe(paymentSettings.stripe.secretKey);
     
-    // Calcula o total do pedido no servidor para evitar adulteração
     const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
     const totalAmount = subtotal + (storeSettings.deliveryFee || 0);
     const amountInCents = Math.round(totalAmount * 100);
 
+    // Gera um ID de pedido único ANTES de criar o PaymentIntent
     function generateOrderId() {
       const letter = String.fromCharCode(65 + Math.floor(Math.random() * 26));
       const numbers = Math.floor(1000 + Math.random() * 9000);
@@ -54,7 +53,7 @@ export async function createPaymentIntent(data: { items: CartItem[] }): Promise<
           enabled: true,
         },
         metadata: {
-            orderId: orderId,
+            orderId: orderId, // Anexa o ID do pedido ao PaymentIntent
         }
       });
       
@@ -62,6 +61,7 @@ export async function createPaymentIntent(data: { items: CartItem[] }): Promise<
         throw new Error('Falha ao gerar o segredo do cliente do PaymentIntent.');
       }
 
+      // Retorna tudo que o frontend precisa
       return { clientSecret: paymentIntent.client_secret, totalAmount, orderId };
 
     } catch (err) {

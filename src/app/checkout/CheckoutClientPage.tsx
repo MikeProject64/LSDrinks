@@ -88,6 +88,7 @@ const StripeForm = ({ onFinalizing, onSuccess, deliveryInfo, totalAmount, orderI
         onFinalizing();
         setErrorMessage(null);
         
+        // 1. Validate form elements
         const { error: submitError } = await elements.submit();
         if (submitError) {
             setErrorMessage(submitError.message || "Ocorreu um erro ao submeter o formulário.");
@@ -95,6 +96,7 @@ const StripeForm = ({ onFinalizing, onSuccess, deliveryInfo, totalAmount, orderI
             return;
         }
 
+        // 2. Confirm the payment
         const { error: confirmError, paymentIntent } = await stripe.confirmPayment({
             elements,
             redirect: 'if_required'
@@ -107,6 +109,7 @@ const StripeForm = ({ onFinalizing, onSuccess, deliveryInfo, totalAmount, orderI
             return;
         }
 
+        // 3. If payment is successful, save the order
         if (paymentIntent?.status === 'succeeded') {
             try {
                 const result = await saveOrder({
@@ -114,7 +117,7 @@ const StripeForm = ({ onFinalizing, onSuccess, deliveryInfo, totalAmount, orderI
                     totalAmount,
                     paymentMethod: 'stripe',
                     paymentDetails: 'Pago com Cartão',
-                    orderId,
+                    orderId, // Use the pre-generated orderId
                     stripePaymentIntentId: paymentIntent.id,
                     ...deliveryInfo
                 });
@@ -227,7 +230,7 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
             .then(intent => {
                 setClientSecret(intent.clientSecret);
                 setStripeTotal(intent.totalAmount);
-                setStripeOrderId(intent.orderId);
+                setStripeOrderId(intent.orderId); // Store the orderId from the intent
                 setSelectedPayment('stripe');
             })
             .catch(error => {
@@ -240,7 +243,7 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
 
   const onDeliverySubmit = (data: DeliveryFormValues) => {
     setDeliveryInfo(data);
-    saveDeliveryInfoLocally(data); // Salva as informações no momento do envio
+    saveDeliveryInfoLocally(data);
     setStep('payment');
   }
 
@@ -272,7 +275,7 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
 
       if (result.success && result.orderId) {
         saveOrderIdLocally(result.orderId);
-        saveDeliveryInfoLocally(deliveryInfo); // Salva após pedido bem sucedido
+        saveDeliveryInfoLocally(deliveryInfo);
         toast({ title: 'Sucesso!', description: 'Seu pedido foi realizado e será pago na entrega.' });
         clearCart();
         router.push('/orders');
@@ -288,7 +291,7 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
   
   const handleStripeSuccess = (orderId: string) => {
     if(deliveryInfo) {
-        saveDeliveryInfoLocally(deliveryInfo); // Salva após pedido bem sucedido
+        saveDeliveryInfoLocally(deliveryInfo);
     }
     saveOrderIdLocally(orderId);
     toast({ title: 'Sucesso!', description: 'Seu pedido foi realizado com sucesso.' });
@@ -424,7 +427,7 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
     }
   }
 
-  const shouldShowTitle = step !== 'finalizing' && !selectedPayment;
+  const shouldShowTitle = step !== 'finalizing' && selectedPayment !== 'stripe';
 
   return (
     <>
