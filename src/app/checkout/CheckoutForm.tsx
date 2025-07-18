@@ -90,7 +90,7 @@ export default function CheckoutForm() {
         clearCart();
         router.push('/orders');
       } else {
-         throw new Error(result.orderId || 'A transação falhou.');
+         throw new Error('A transação falhou.');
       }
     } catch (err) {
       const error = err as Error;

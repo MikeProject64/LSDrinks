@@ -41,6 +41,7 @@ export default function CheckoutClientPage({ stripePromise }: CheckoutClientPage
 
   useEffect(() => {
     async function loadPaymentSettings() {
+      setIsLoading(true);
       try {
         const settings = await getPaymentSettings();
         setPaymentSettings(settings);
