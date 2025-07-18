@@ -66,18 +66,39 @@ const checkoutSchema = z.object({
   items: z.array(z.any()),
   totalAmount: z.number(),
   paymentMethodId: z.string(),
+  customerName: z.string(),
+  customerPhone: z.string(),
+  customerAddress: z.string(),
 });
 
-export async function processCheckout(data: { items: CartItem[], totalAmount: number, paymentMethodId: string }) {
+function generateOrderId() {
+  const letter = String.fromCharCode(65 + Math.floor(Math.random() * 26)); // A-Z
+  const numbers = Math.floor(1000 + Math.random() * 9000); // 1000-9999
+  return `${letter}${numbers}`;
+}
+
+export async function processCheckout(data: z.infer<typeof checkoutSchema>) {
   const validation = checkoutSchema.safeParse(data);
   if (!validation.success) {
+    console.error(validation.error);
     throw new Error('Dados de checkout inválidos.');
   }
 
-  const { items, totalAmount, paymentMethodId } = data;
+  const { items, totalAmount, paymentMethodId, customerName, customerPhone, customerAddress } = validation.data;
 
   const paymentSettings = await getPaymentSettings();
-  let orderId: string;
+  const orderId = generateOrderId();
+
+  const commonOrderData = {
+    items,
+    totalAmount,
+    customer: {
+        name: customerName,
+        phone: customerPhone,
+        address: customerAddress
+    },
+    createdAt: serverTimestamp(),
+  };
 
   // Caso: Pagamento na Entrega
   if (paymentMethodId === 'on_delivery') {
@@ -85,14 +106,12 @@ export async function processCheckout(data: { items: CartItem[], totalAmount: nu
       throw new Error('O método de pagamento na entrega não está habilitado.');
     }
     const orderData = {
-      items,
-      totalAmount,
-      status: 'Pendente', // Novo status para indicar pagamento na entrega
+      ...commonOrderData,
+      id: orderId,
+      status: 'Pendente',
       paymentMethod: 'Na Entrega',
-      createdAt: serverTimestamp(),
     };
-    const orderDoc = await addDoc(collection(db, 'orders'), orderData);
-    orderId = orderDoc.id;
+    await setDoc(doc(db, 'orders', orderId), orderData);
     return { success: true, orderId };
   }
 
@@ -112,20 +131,22 @@ export async function processCheckout(data: { items: CartItem[], totalAmount: nu
       automatic_payment_methods: {
         enabled: true,
         allow_redirects: 'never'
+      },
+      metadata: {
+        orderId: orderId,
+        customerName: customerName,
       }
     });
 
     if (paymentIntent.status === 'succeeded') {
       const orderData = {
-        items,
-        totalAmount,
+        ...commonOrderData,
+        id: orderId,
         status: 'Pago',
         paymentMethod: 'Cartão de Crédito',
         stripePaymentIntentId: paymentIntent.id,
-        createdAt: serverTimestamp(),
       };
-      const orderDoc = await addDoc(collection(db, 'orders'), orderData);
-      orderId = orderDoc.id;
+      await setDoc(doc(db, 'orders', orderId), orderData);
       return { success: true, orderId };
     } else {
        throw new Error('Falha no pagamento.');
@@ -155,6 +176,7 @@ export async function getAllOrders() {
         totalAmount: data.totalAmount,
         status: data.status,
         paymentMethod: data.paymentMethod,
+        customer: data.customer,
         createdAt: (data.createdAt as Timestamp).toDate().toISOString(),
       };
     });
@@ -187,6 +209,7 @@ export async function getOrdersByIds(ids: string[]) {
             totalAmount: data.totalAmount,
             status: data.status,
             paymentMethod: data.paymentMethod,
+            customer: data.customer,
             createdAt: (data.createdAt as Timestamp).toDate().toISOString(),
           });
         });

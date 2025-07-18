@@ -6,7 +6,6 @@ import { useCart } from '@/context/CartContext';
 import { processCheckout } from '@/actions/payment-actions';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
-import { useRouter } from 'next/navigation';
 
 const cardElementOptions = {
   style: {
@@ -28,36 +27,34 @@ const cardElementOptions = {
   hidePostalCode: true,
 };
 
-const saveOrderIdLocally = (orderId: string) => {
-    try {
-      const existingOrderIds = JSON.parse(localStorage.getItem('myOrderIds') || '[]');
-      if (!existingOrderIds.includes(orderId)) {
-        const updatedOrderIds = [...existingOrderIds, orderId];
-        localStorage.setItem('myOrderIds', JSON.stringify(updatedOrderIds));
-      }
-    } catch (e) {
-      console.error("Failed to save order ID to local storage", e);
-    }
-};
+interface CheckoutFormProps {
+    deliveryInfo: {
+        customerName: string;
+        customerPhone: string;
+        customerAddress: string;
+    };
+    onSuccess: (orderId: string) => void;
+    onFinalizing: () => void;
+}
 
-export default function CheckoutForm() {
+export default function CheckoutForm({ deliveryInfo, onSuccess, onFinalizing }: CheckoutFormProps) {
   const stripe = useStripe();
   const elements = useElements();
-  const { items, totalWithFee, clearCart } = useCart();
+  const { items, totalWithFee } = useCart();
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const router = useRouter();
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    setIsLoading(true);
-    setErrorMessage(null);
-
+    
     if (!stripe || !elements) {
       setErrorMessage("Stripe não foi carregado corretamente.");
-      setIsLoading(false);
       return;
     }
+    
+    setIsLoading(true);
+    onFinalizing();
+    setErrorMessage(null);
 
     const cardElement = elements.getElement(CardElement);
     if (!cardElement) {
@@ -66,14 +63,16 @@ export default function CheckoutForm() {
       return;
     }
 
-    const { error, paymentMethod } = await stripe.createPaymentMethod({
+    const { error: paymentMethodError, paymentMethod } = await stripe.createPaymentMethod({
       type: 'card',
       card: cardElement,
     });
 
-    if (error) {
-      setErrorMessage(error.message || "Ocorreu um erro ao criar o método de pagamento.");
+    if (paymentMethodError) {
+      setErrorMessage(paymentMethodError.message || "Ocorreu um erro ao criar o método de pagamento.");
+      toast({ title: 'Erro', description: paymentMethodError.message, variant: 'destructive'});
       setIsLoading(false);
+      // NOTE: We don't return to the payment step here, let the user retry on the same screen.
       return;
     }
 
@@ -82,28 +81,25 @@ export default function CheckoutForm() {
         items,
         totalAmount: totalWithFee,
         paymentMethodId: paymentMethod.id,
+        ...deliveryInfo
       });
 
       if (result.success && result.orderId) {
-        saveOrderIdLocally(result.orderId);
-        toast({ title: 'Sucesso!', description: 'Seu pedido foi realizado com sucesso.' });
-        clearCart();
-        router.push('/orders');
+        onSuccess(result.orderId);
       } else {
-         throw new Error('A transação falhou.');
+         throw new Error('A transação falhou após a criação do método de pagamento.');
       }
     } catch (err) {
       const error = err as Error;
       setErrorMessage(error.message);
       toast({ title: 'Erro no Pagamento', description: error.message, variant: 'destructive' });
-    } finally {
       setIsLoading(false);
     }
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-       <h2 className="text-xl font-semibold">Pagamento com Cartão</h2>
+       <h3 className="text-lg font-semibold">Dados do Cartão</h3>
       <div className="p-4 border rounded-lg bg-background">
         <CardElement options={cardElementOptions} />
       </div>

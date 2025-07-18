@@ -24,6 +24,7 @@ import {
     AccordionTrigger,
   } from "@/components/ui/accordion"
 import Image from "next/image";
+import { User, Phone, MapPin } from "lucide-react";
 
 export default async function AdminOrdersPage() {
   const orders = await getAllOrders();
@@ -46,52 +47,46 @@ export default async function AdminOrdersPage() {
               Nenhum pedido encontrado.
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[120px]">ID do Pedido</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Pagamento</TableHead>
-                  <TableHead>Data</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
-                  <TableHead className="text-center w-[120px]">Detalhes</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {orders.map((order) => (
-                  <TableRow key={order.id}>
-                    <TableCell className="font-mono text-xs truncate">{order.id}</TableCell>
-                    <TableCell>
-                      <Badge variant={order.status === "Pago" ? "default" : "secondary"}>
-                        {order.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                        {order.paymentMethod}
-                    </TableCell>
-                    <TableCell>
-                      {new Date(order.createdAt).toLocaleString("pt-BR")}
-                    </TableCell>
-                    <TableCell className="text-right font-medium">
-                      R$ {order.totalAmount.toFixed(2)}
-                    </TableCell>
-                    <TableCell className="px-0">
-                    <Accordion type="single" collapsible className="w-full">
-                        <AccordionItem value={order.id} className="border-none">
-                            <AccordionTrigger className="text-sm p-2 hover:no-underline justify-center">Ver Itens</AccordionTrigger>
-                            <AccordionContent>
-                                <div className="space-y-2 p-2 bg-muted/50 rounded-md">
+            <Accordion type="multiple" className="w-full">
+              {orders.map((order) => (
+                 <AccordionItem value={order.id} key={order.id}>
+                    <AccordionTrigger className="hover:no-underline">
+                        <div className="w-full grid grid-cols-5 items-center text-sm font-normal">
+                            <span className="font-mono font-semibold text-left">#{order.id}</span>
+                            <span className="hidden sm:block text-left">{new Date(order.createdAt).toLocaleString("pt-BR")}</span>
+                            <Badge variant={order.status === "Pago" ? "default" : "secondary"} className="w-fit justify-self-start sm:justify-self-center">
+                                {order.status}
+                            </Badge>
+                            <span className="hidden sm:block text-center">{order.paymentMethod}</span>
+                            <span className="font-medium text-right pr-4">R$ {order.totalAmount.toFixed(2)}</span>
+                        </div>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                        <div className="p-4 bg-muted/50 rounded-md grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {/* Customer Info */}
+                            <div>
+                                <h4 className="font-semibold mb-3">Dados do Cliente</h4>
+                                <div className="space-y-2 text-sm text-muted-foreground">
+                                    <p className="flex items-center gap-2"><User className="w-4 h-4"/> {order.customer.name}</p>
+                                    <p className="flex items-center gap-2"><Phone className="w-4 h-4"/> {order.customer.phone}</p>
+                                    <p className="flex items-center gap-2"><MapPin className="w-4 h-4"/> {order.customer.address}</p>
+                                </div>
+                            </div>
+                            {/* Items */}
+                            <div>
+                                <h4 className="font-semibold mb-3">Itens do Pedido</h4>
+                                <div className="space-y-3">
                                 {order.items.map((item) => (
-                                    <div key={item.id} className="flex items-center gap-2 text-left">
+                                    <div key={item.id} className="flex items-center gap-3 text-left">
                                         <Image
                                             src={item.imageUrl}
                                             alt={item.title}
-                                            width={30}
-                                            height={30}
+                                            width={40}
+                                            height={40}
                                             className="rounded-sm object-cover"
                                         />
                                         <div>
-                                            <p className="text-xs font-semibold">{item.title}</p>
+                                            <p className="text-sm font-semibold">{item.title}</p>
                                             <p className="text-xs text-muted-foreground">
                                                 {item.quantity} x R$ {item.price.toFixed(2)}
                                             </p>
@@ -99,14 +94,12 @@ export default async function AdminOrdersPage() {
                                     </div>
                                 ))}
                                 </div>
-                            </AccordionContent>
-                        </AccordionItem>
-                    </Accordion>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                            </div>
+                        </div>
+                    </AccordionContent>
+                 </AccordionItem>
+              ))}
+            </Accordion>
           )}
         </CardContent>
       </Card>
