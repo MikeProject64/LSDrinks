@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -39,9 +40,6 @@ const itemSchema = z.object({
   categoryId: z.string().min(1, "A categoria é obrigatória."),
   imageUrl: z.string().optional(),
   imageFile: z.instanceof(File).optional(),
-}).superRefine((data, ctx) => {
-    // A validação de imagem/URL só é necessária se não houver já uma imageUrl
-    // Esta lógica é simplificada, assumindo que a edição pode não exigir nova imagem
 });
 
 type ItemFormValues = z.infer<typeof itemSchema>;
@@ -179,7 +177,7 @@ export default function EditItemPage({ params }: { params: { id: string } }) {
                   render={({ field }) => (
                       <FormItem>
                           <FormLabel>Categoria</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
+                          <Select onValueChange={field.onChange} value={field.value} defaultValue="">
                               <FormControl>
                                   <SelectTrigger>
                                       <SelectValue placeholder="Selecione uma categoria" />

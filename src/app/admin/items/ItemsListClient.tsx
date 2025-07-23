@@ -76,7 +76,8 @@ export default function ItemsListClient({ initialItems, initialLastVisibleId, in
         categoryId: selectedCategory || null,
         pageLimit: 15
       });
-      setItems(prev => reset ? result.items as Item[] : [...prev, ...result.items as Item[]]);
+      
+      setItems(prev => (reset ? result.items : [...prev, ...result.items]) as Item[]);
       setLastVisibleId(result.lastVisibleId);
       setHasMore(result.hasMore);
     } catch (error) {
@@ -95,15 +96,18 @@ export default function ItemsListClient({ initialItems, initialLastVisibleId, in
     if (observerEntry?.isIntersecting && hasMore && !isLoadingMore) {
       fetchItems();
     }
-  }, [observerEntry, hasMore, isLoadingMore, fetchItems]);
+  }, [observerEntry?.isIntersecting, hasMore, isLoadingMore, fetchItems]);
   
   useEffect(() => {
     if (isInitialLoad.current) {
         isInitialLoad.current = false;
         return;
     }
-    fetchItems(true);
-  }, [searchQuery, selectedCategory]);
+    const timer = setTimeout(() => {
+        fetchItems(true);
+    }, 500); // Debounce
+    return () => clearTimeout(timer);
+  }, [searchQuery, selectedCategory, fetchItems]);
 
 
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -127,6 +131,7 @@ export default function ItemsListClient({ initialItems, initialLastVisibleId, in
   };
   
   const handleCategoryChange = (value: string) => {
+    // "all" é o valor para limpar o filtro
     setSelectedCategory(value === 'all' ? '' : value);
   };
 
@@ -279,4 +284,3 @@ export default function ItemsListClient({ initialItems, initialLastVisibleId, in
     </>
   );
 }
-

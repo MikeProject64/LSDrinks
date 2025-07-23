@@ -197,7 +197,7 @@ export default function NewItemPage() {
                   render={({ field }) => (
                       <FormItem>
                           <FormLabel>Categoria</FormLabel>
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <Select onValueChange={field.onChange} value={field.value} defaultValue="">
                               <FormControl>
                                   <SelectTrigger>
                                       <SelectValue placeholder="Selecione uma categoria" />

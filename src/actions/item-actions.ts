@@ -57,23 +57,23 @@ const getAdminItems = async ({
     // Base query
     let q = query(collection(db, "items"), orderBy("createdAt", "desc"));
     
-    // Apply category filter directly in the query
+    // Se há uma categoria, aplicamos o filtro na query.
     if (categoryId) {
       q = query(q, where("categoryId", "==", categoryId));
     }
-    
-    // If there is no search query, we can paginate with Firestore's cursors.
-    // Otherwise, we fetch all (or up to a reasonable limit) and filter/paginate in-memory.
-    if (!searchQuery) {
-      if (lastVisibleId) {
-        const lastVisibleDoc = await getDoc(doc(db, "items", lastVisibleId));
-        if (lastVisibleDoc.exists()) {
-          q = query(q, startAfter(lastVisibleDoc));
-        }
-      }
-      q = query(q, limit(pageLimit));
-    }
 
+    // Se não há busca por texto, podemos paginar diretamente no Firestore.
+    // O 'limit' é aplicado aqui para otimizar a leitura inicial.
+    if (!searchQuery) {
+        if (lastVisibleId) {
+            const lastVisibleDoc = await getDoc(doc(db, "items", lastVisibleId));
+            if (lastVisibleDoc.exists()) {
+                q = query(q, startAfter(lastVisibleDoc));
+            }
+        }
+        q = query(q, limit(pageLimit));
+    }
+    
     const itemsSnapshot = await getDocs(q);
 
     let allItems = itemsSnapshot.docs.map(doc => {
@@ -90,30 +90,28 @@ const getAdminItems = async ({
       };
     });
 
-    // If there's a search query, filter the already-fetched results in-memory.
+    // Se houver uma busca por texto, filtramos os resultados em memória.
+    // Isso é feito *depois* de filtrar por categoria (se aplicável)
     if (searchQuery) {
       allItems = allItems.filter(item => 
         item.title.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
     
-    // Handle pagination for all cases
-    let paginatedItems;
-    let newLastVisibleId = null;
-    let hasMore = false;
+    // A paginação manual só é necessária se houver busca por texto,
+    // pois a query do Firestore já foi limitada nos outros casos.
+    const paginatedItems = searchQuery 
+        ? allItems.slice(0, pageLimit)
+        : allItems;
 
-    // If we're filtering by search, we must paginate the in-memory array.
-    if (searchQuery) {
-        const startIndex = lastVisibleId ? allItems.findIndex(item => item.id === lastVisibleId) + 1 : 0;
-        paginatedItems = allItems.slice(startIndex, startIndex + pageLimit);
-        hasMore = (startIndex + pageLimit) < allItems.length;
-        newLastVisibleId = paginatedItems.length > 0 ? paginatedItems[paginatedItems.length - 1].id : null;
-    } else { 
-        // Standard Firestore-based pagination
-        paginatedItems = allItems;
-        newLastVisibleId = itemsSnapshot.docs.length > 0 ? itemsSnapshot.docs[itemsSnapshot.docs.length - 1].id : null;
-        hasMore = itemsSnapshot.docs.length === pageLimit;
-    }
+    const newLastVisibleId = paginatedItems.length > 0 
+        ? paginatedItems[paginatedItems.length - 1].id 
+        : null;
+        
+    const hasMore = searchQuery 
+        ? paginatedItems.length < allItems.length // Se a fatia é menor que o total, há mais.
+        : itemsSnapshot.docs.length === pageLimit; // Se a query retornou o limite, pode haver mais.
+
 
     return { items: paginatedItems, lastVisibleId: newLastVisibleId, hasMore };
 
