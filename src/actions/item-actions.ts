@@ -54,66 +54,82 @@ const getAdminItems = async ({
     const categoriesSnapshot = await getDocs(collection(db, "categories"));
     const categories = new Map(categoriesSnapshot.docs.map(doc => [doc.id, doc.data().name]));
 
-    let constraints = [orderBy("createdAt", "desc")];
-    if (categoryId) {
-        constraints.push(where("categoryId", "==", categoryId));
-    }
+    let q = query(
+      collection(db, "items"),
+      orderBy("createdAt", "desc")
+    );
     
-    // A paginação com cursor só pode ser usada se a busca por texto não estiver ativa,
-    // pois a busca por texto força uma filtragem em memória.
-    if (lastVisibleId && !searchQuery) {
-        const lastVisibleDoc = await getDoc(doc(db, "items", lastVisibleId));
-        if (lastVisibleDoc.exists()) {
-            constraints.push(startAfter(lastVisibleDoc));
-        }
-    }
-    
-    // Aplicamos o limite APENAS se não houver busca por texto.
-    // Se houver busca, precisamos de todos os documentos (filtrados por categoria) para pesquisar neles.
-    if (!searchQuery) {
-        constraints.push(limit(pageLimit));
-    }
-    
-    const itemsQuery = query(collection(db, "items"), ...constraints);
-    const itemsSnapshot = await getDocs(itemsQuery);
-    
-    let allItems = itemsSnapshot.docs.map(doc => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        title: data.title || '',
-        description: data.description || '',
-        price: data.price || 0,
-        imageUrl: data.imageUrl || '',
-        categoryId: data.categoryId || '',
-        categoryName: categories.get(data.categoryId) || 'Sem categoria',
-        createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
-      };
-    });
-    
-    // Filtro de busca por texto (em memória)
+    // Se há uma busca de texto, não podemos usar o cursor do Firestore (`startAfter`)
+    // porque o filtro será feito em memória. Neste caso, buscamos todos os itens
+    // que correspondem à categoria e depois filtramos e paginamos manualmente.
     if (searchQuery) {
-      allItems = allItems.filter(item => 
-        item.title.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-    }
-    
-    // Paginação manual para o caso de busca por texto.
-    const paginatedItems = searchQuery ? allItems.slice(0, pageLimit) : allItems;
+        if (categoryId) {
+            q = query(collection(db, "items"), where("categoryId", "==", categoryId), orderBy("createdAt", "desc"));
+        }
 
-    const newLastVisibleId = paginatedItems.length > 0 ? paginatedItems[paginatedItems.length - 1].id : null;
-    
-    // A lógica 'hasMore' precisa considerar se a busca está ativa.
-    let hasMore;
-    if(searchQuery) {
-        // Se a busca estiver ativa, há mais se o número total de itens filtrados for maior que o limite da página.
-        hasMore = allItems.length > pageLimit;
+        const allDocsSnapshot = await getDocs(q);
+        let allItems = allDocsSnapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                title: data.title || '',
+                description: data.description || '',
+                price: data.price || 0,
+                imageUrl: data.imageUrl || '',
+                categoryId: data.categoryId || '',
+                categoryName: categories.get(data.categoryId) || 'Sem categoria',
+                createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
+            };
+        });
+
+        const filteredItems = allItems.filter(item => item.title.toLowerCase().includes(searchQuery.toLowerCase()));
+
+        // Paginação manual
+        const startIndex = lastVisibleId ? filteredItems.findIndex(item => item.id === lastVisibleId) + 1 : 0;
+        const paginatedItems = filteredItems.slice(startIndex, startIndex + pageLimit);
+        
+        const newLastVisibleId = paginatedItems.length > 0 ? paginatedItems[paginatedItems.length - 1].id : null;
+        const hasMore = (startIndex + paginatedItems.length) < filteredItems.length;
+
+        return { items: paginatedItems, lastVisibleId: newLastVisibleId, hasMore };
+
     } else {
-        // Se não, há mais se o snapshot original do Firestore retornou o número máximo de itens.
-        hasMore = itemsSnapshot.docs.length === pageLimit;
-    }
+        // Lógica sem busca por texto (com paginação do Firestore)
+        let constraints = [orderBy("createdAt", "desc")];
+        if (categoryId) {
+            constraints.push(where("categoryId", "==", categoryId));
+        }
 
-    return { items: paginatedItems, lastVisibleId: newLastVisibleId, hasMore };
+        if (lastVisibleId) {
+            const lastVisibleDoc = await getDoc(doc(db, "items", lastVisibleId));
+            if (lastVisibleDoc.exists()) {
+                constraints.push(startAfter(lastVisibleDoc));
+            }
+        }
+        constraints.push(limit(pageLimit));
+        
+        const itemsQuery = query(collection(db, "items"), ...constraints);
+        const itemsSnapshot = await getDocs(itemsQuery);
+        
+        const items = itemsSnapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                title: data.title || '',
+                description: data.description || '',
+                price: data.price || 0,
+                imageUrl: data.imageUrl || '',
+                categoryId: data.categoryId || '',
+                categoryName: categories.get(data.categoryId) || 'Sem categoria',
+                createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
+            };
+        });
+        
+        const newLastVisibleId = itemsSnapshot.docs.length > 0 ? itemsSnapshot.docs[itemsSnapshot.docs.length - 1].id : null;
+        const hasMore = items.length === pageLimit;
+
+        return { items, lastVisibleId: newLastVisibleId, hasMore };
+    }
 
   } catch (e) {
     console.error("Error fetching admin items: ", e);

@@ -60,18 +60,21 @@ export default function ItemsListClient({ initialItems, initialLastVisibleId, in
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const observerEntry = useIntersectionObserver(loadMoreRef, { threshold: 1.0 });
 
-  const fetchItems = useCallback(async (reset = false) => {
-    if (isLoadingMore || isLoading) return;
+  const fetchItems = useCallback(async (options: { reset: boolean }) => {
+    const { reset } = options;
+    if (isLoadingMore || (isLoading && !reset)) return;
 
     if (reset) {
-        setIsLoading(true);
+      setIsLoading(true);
     } else {
-        setIsLoadingMore(true);
+      setIsLoadingMore(true);
     }
 
     try {
+      const currentLastVisibleId = reset ? null : lastVisibleId;
+
       const result = await getAdminItems({
-        lastVisibleId: reset ? null : lastVisibleId,
+        lastVisibleId: currentLastVisibleId,
         searchQuery: searchQuery || null,
         categoryId: selectedCategory || null,
         pageLimit: 15
@@ -92,22 +95,24 @@ export default function ItemsListClient({ initialItems, initialLastVisibleId, in
     }
   }, [lastVisibleId, searchQuery, selectedCategory, toast, isLoading, isLoadingMore]);
 
+  // Efeito para carregar mais itens ao rolar
   useEffect(() => {
-    if (observerEntry?.isIntersecting && hasMore && !isLoadingMore) {
-      fetchItems();
+    if (observerEntry?.isIntersecting && hasMore && !isLoadingMore && !isLoading) {
+      fetchItems({ reset: false });
     }
-  }, [observerEntry?.isIntersecting, hasMore, isLoadingMore, fetchItems]);
+  }, [observerEntry?.isIntersecting, hasMore, isLoadingMore, isLoading, fetchItems]);
   
+  // Efeito para buscar novamente ao mudar filtros
   useEffect(() => {
     if (isInitialLoad.current) {
         isInitialLoad.current = false;
         return;
     }
     const timer = setTimeout(() => {
-        fetchItems(true);
+        fetchItems({ reset: true });
     }, 500); // Debounce
     return () => clearTimeout(timer);
-  }, [searchQuery, selectedCategory, fetchItems]);
+  }, [searchQuery, selectedCategory]);
 
 
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
