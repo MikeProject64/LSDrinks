@@ -34,78 +34,92 @@ export async function addItem(data: z.infer<typeof itemSchema>) {
   }
 }
 
-const getAdminItems = async ({ pageLimit = 15, lastVisibleId, categoryId, searchQuery }: { pageLimit?: number; lastVisibleId?: string | null; categoryId?: string | null, searchQuery?: string | null; }) => {
-    if (!db) {
-      console.warn("Firebase não inicializado, retornando resultado paginado vazio.");
-      return { items: [], lastVisibleId: null, hasMore: false };
+const getAdminItems = async ({ 
+  pageLimit = 15, 
+  lastVisibleId, 
+  categoryId, 
+  searchQuery 
+}: { 
+  pageLimit?: number; 
+  lastVisibleId?: string | null; 
+  categoryId?: string | null; 
+  searchQuery?: string | null; 
+}) => {
+  if (!db) {
+    console.warn("Firebase não inicializado, retornando resultado paginado vazio.");
+    return { items: [], lastVisibleId: null, hasMore: false };
+  }
+
+  try {
+    const categoriesSnapshot = await getDocs(collection(db, "categories"));
+    const categories = new Map(categoriesSnapshot.docs.map(doc => [doc.id, doc.data().name]));
+
+    // Base query
+    let q = query(collection(db, "items"), orderBy("createdAt", "desc"));
+    
+    // Apply category filter if it exists
+    if (categoryId) {
+      q = query(q, where("categoryId", "==", categoryId));
     }
-  
-    try {
-      const categoriesSnapshot = await getDocs(collection(db, "categories"));
-      const categories = new Map(categoriesSnapshot.docs.map(doc => [doc.id, doc.data().name]));
-  
-      let q = query(collection(db, "items"), orderBy("createdAt", "desc"));
-  
-      if (categoryId) {
-        q = query(q, where("categoryId", "==", categoryId));
-      }
-      
-      // Se houver busca, não podemos paginar no query, pois precisamos filtrar no servidor
-      if (!searchQuery) {
-        if (lastVisibleId) {
-            const lastVisibleDoc = await getDoc(doc(db, "items", lastVisibleId));
-            if (lastVisibleDoc.exists()) {
-                q = query(q, startAfter(lastVisibleDoc));
-            }
+    
+    // If there is no search query, we can paginate directly in Firestore
+    if (!searchQuery) {
+      if (lastVisibleId) {
+        const lastVisibleDoc = await getDoc(doc(db, "items", lastVisibleId));
+        if (lastVisibleDoc.exists()) {
+          q = query(q, startAfter(lastVisibleDoc));
         }
-        q = query(q, limit(pageLimit));
       }
-
-      const itemsSnapshot = await getDocs(q);
-      
-      let allItems = itemsSnapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          title: data.title || '',
-          description: data.description || '',
-          price: data.price || 0,
-          imageUrl: data.imageUrl || '',
-          categoryId: data.categoryId || '',
-          categoryName: categories.get(data.categoryId) || 'Sem categoria',
-          createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
-        };
-      });
-
-      // Filtro de busca no servidor para permitir pesquisa por substring
-      if (searchQuery) {
-        allItems = allItems.filter(item => 
-            item.title.toLowerCase().includes(searchQuery.toLowerCase())
-        );
-      }
-
-      let items, hasMore = false, newLastVisibleId = null;
-
-      if(searchQuery) {
-          // Se houver busca, a paginação é feita no array filtrado
-          const startIndex = lastVisibleId ? allItems.findIndex(item => item.id === lastVisibleId) + 1 : 0;
-          items = allItems.slice(startIndex, startIndex + pageLimit);
-          hasMore = (startIndex + pageLimit) < allItems.length;
-          newLastVisibleId = items.length > 0 ? items[items.length - 1].id : null;
-      } else {
-          // Paginação normal via Firestore query
-          items = allItems;
-          hasMore = items.length === pageLimit;
-          newLastVisibleId = itemsSnapshot.docs.length > 0 ? itemsSnapshot.docs[itemsSnapshot.docs.length - 1].id : null;
-      }
-  
-      return { items, lastVisibleId: newLastVisibleId, hasMore };
-  
-    } catch (e) {
-      console.error("Error fetching admin items: ", e);
-      throw new Error('Falha ao buscar itens para o admin.');
+      q = query(q, limit(pageLimit));
     }
-  };
+    
+    const itemsSnapshot = await getDocs(q);
+
+    let allItems = itemsSnapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        title: data.title || '',
+        description: data.description || '',
+        price: data.price || 0,
+        imageUrl: data.imageUrl || '',
+        categoryId: data.categoryId || '',
+        categoryName: categories.get(data.categoryId) || 'Sem categoria',
+        createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
+      };
+    });
+
+    // If there's a search query, filter the results in-memory
+    if (searchQuery) {
+      allItems = allItems.filter(item => 
+        item.title.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+    
+    // Handle pagination for server-filtered results (search query)
+    let items;
+    let newLastVisibleId = null;
+    let hasMore = false;
+
+    if (searchQuery) {
+      const startIndex = lastVisibleId ? allItems.findIndex(item => item.id === lastVisibleId) + 1 : 0;
+      items = allItems.slice(startIndex, startIndex + pageLimit);
+      hasMore = (startIndex + pageLimit) < allItems.length;
+      newLastVisibleId = items.length > 0 ? items[items.length - 1].id : null;
+    } else {
+      // Standard Firestore pagination
+      items = allItems;
+      newLastVisibleId = itemsSnapshot.docs.length > 0 ? itemsSnapshot.docs[itemsSnapshot.docs.length - 1].id : null;
+      hasMore = items.length === pageLimit;
+    }
+
+    return { items, lastVisibleId: newLastVisibleId, hasMore };
+
+  } catch (e) {
+    console.error("Error fetching admin items: ", e);
+    throw new Error('Falha ao buscar itens para o admin.');
+  }
+};
 
 export { getAdminItems };
 
