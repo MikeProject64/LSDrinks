@@ -1,3 +1,4 @@
+
 "use client";
 import React, { useState, useRef, useEffect } from 'react';
 import ProductCard from '@/components/ProductCard';
@@ -50,33 +51,13 @@ export default function HomePageClient({ highlights, categories, initialItems, i
   const [lastVisibleId, setLastVisibleId] = useState<string | null>(initialLastVisibleId);
   const [hasMore, setHasMore] = useState(initialHasMore);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const categoryChangeRef = useRef(false);
 
   useEffect(() => {
-    if (categoryChangeRef.current) {
-      setItems(initialItems);
-      setLastVisibleId(initialLastVisibleId);
-      setHasMore(initialHasMore);
-      categoryChangeRef.current = false;
-    }
+    // Quando os itens iniciais mudam (navegação), reseta o estado.
+    setItems(initialItems);
+    setLastVisibleId(initialLastVisibleId);
+    setHasMore(initialHasMore);
   }, [initialItems, initialLastVisibleId, initialHasMore]);
-
-  const handleCategoryChange = (categoryId: string) => {
-    categoryChangeRef.current = true;
-    setActiveCategory(categoryId);
-    // This will cause a re-render which triggers the effect above
-    // to reset items based on the new props from the server for that category.
-    // For "All", we handle it client-side.
-    if (categoryId !== 'Todos') {
-      // Logic for filtered initial load would go here if we were to fetch category-specific items from server
-      setItems(initialItems.filter(item => item.categoryId === categoryId));
-      setHasMore(false); // Disable "load more" for specific categories for now
-    } else {
-      setItems(initialItems);
-      setHasMore(initialHasMore);
-      setLastVisibleId(initialLastVisibleId);
-    }
-  };
   
   const handleLoadMore = async () => {
     if (!hasMore || isLoadingMore) return;
@@ -110,6 +91,8 @@ export default function HomePageClient({ highlights, categories, initialItems, i
     setSelectedProduct(null);
   };
 
+  // Filtra os itens com base na categoria ativa.
+  // Esta é a única fonte da verdade para os itens exibidos.
   const filteredItems = activeCategory === 'Todos' 
     ? items 
     : items.filter(item => item.categoryId === activeCategory);
@@ -184,7 +167,7 @@ export default function HomePageClient({ highlights, categories, initialItems, i
                 className={`px-4 py-2 rounded-full text-sm font-medium transition-colors min-w-[90px] border border-border shadow-sm
                   ${activeCategory === cat.id ? 'bg-accent text-accent-foreground' : 'bg-card text-muted-foreground hover:bg-accent/20'}
                 `}
-                onClick={() => handleCategoryChange(cat.id)}
+                onClick={() => setActiveCategory(cat.id)}
               >
                 {cat.name}
               </button>
