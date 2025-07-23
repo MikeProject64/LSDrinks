@@ -44,27 +44,26 @@ const getAdminItems = async ({ pageLimit = 15, lastVisibleId, categoryId, search
       const categoriesSnapshot = await getDocs(collection(db, "categories"));
       const categories = new Map(categoriesSnapshot.docs.map(doc => [doc.id, doc.data().name]));
   
-      let q = query(collection(db, "items"), orderBy("title"));
+      let q = query(collection(db, "items"), orderBy("createdAt", "desc"));
   
       if (categoryId) {
         q = query(q, where("categoryId", "==", categoryId));
       }
-      if (searchQuery) {
-        q = query(q, where("title", ">=", searchQuery), where("title", "<=", searchQuery + '\uf8ff'));
-      }
       
-      q = query(q, limit(pageLimit));
-  
-      if (lastVisibleId) {
-        const lastVisibleDoc = await getDoc(doc(db, "items", lastVisibleId));
-        if (lastVisibleDoc.exists()) {
-          q = query(q, startAfter(lastVisibleDoc));
+      // Se houver busca, não podemos paginar no query, pois precisamos filtrar no servidor
+      if (!searchQuery) {
+        if (lastVisibleId) {
+            const lastVisibleDoc = await getDoc(doc(db, "items", lastVisibleId));
+            if (lastVisibleDoc.exists()) {
+                q = query(q, startAfter(lastVisibleDoc));
+            }
         }
+        q = query(q, limit(pageLimit));
       }
-      
+
       const itemsSnapshot = await getDocs(q);
       
-      const items = itemsSnapshot.docs.map(doc => {
+      let allItems = itemsSnapshot.docs.map(doc => {
         const data = doc.data();
         return {
           id: doc.id,
@@ -77,9 +76,28 @@ const getAdminItems = async ({ pageLimit = 15, lastVisibleId, categoryId, search
           createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
         };
       });
-      
-      const newLastVisibleId = itemsSnapshot.docs.length > 0 ? itemsSnapshot.docs[itemsSnapshot.docs.length - 1].id : null;
-      const hasMore = items.length === pageLimit;
+
+      // Filtro de busca no servidor para permitir pesquisa por substring
+      if (searchQuery) {
+        allItems = allItems.filter(item => 
+            item.title.toLowerCase().includes(searchQuery.toLowerCase())
+        );
+      }
+
+      let items, hasMore = false, newLastVisibleId = null;
+
+      if(searchQuery) {
+          // Se houver busca, a paginação é feita no array filtrado
+          const startIndex = lastVisibleId ? allItems.findIndex(item => item.id === lastVisibleId) + 1 : 0;
+          items = allItems.slice(startIndex, startIndex + pageLimit);
+          hasMore = (startIndex + pageLimit) < allItems.length;
+          newLastVisibleId = items.length > 0 ? items[items.length - 1].id : null;
+      } else {
+          // Paginação normal via Firestore query
+          items = allItems;
+          hasMore = items.length === pageLimit;
+          newLastVisibleId = itemsSnapshot.docs.length > 0 ? itemsSnapshot.docs[itemsSnapshot.docs.length - 1].id : null;
+      }
   
       return { items, lastVisibleId: newLastVisibleId, hasMore };
   
