@@ -13,7 +13,10 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 
 const settingsSchema = z.object({
   storeName: z.string().min(1, 'O nome da loja é obrigatório.'),
-  deliveryFee: z.coerce.number().min(0, 'A taxa de entrega não pode ser negativa.'),
+  deliveryFees: z.object({
+    stripe: z.coerce.number().min(0, 'A taxa de entrega não pode ser negativa.'),
+    on_delivery: z.coerce.number().min(0, 'A taxa de entrega não pode ser negativa.'),
+  }),
 });
 
 type SettingsFormValues = z.infer<typeof settingsSchema>;
@@ -23,7 +26,7 @@ export default function SettingsForm() {
     resolver: zodResolver(settingsSchema),
     defaultValues: {
       storeName: '',
-      deliveryFee: 0,
+      deliveryFees: { stripe: 0, on_delivery: 0 },
     },
   });
 
@@ -40,12 +43,11 @@ export default function SettingsForm() {
     }
     loadSettings();
   }, [form]);
-  
+
   const onSubmit = async (values: SettingsFormValues) => {
     try {
       await saveSettings(values);
       toast({ title: 'Sucesso', description: 'Configurações salvas com sucesso.' });
-      // Forçar um recarregamento para que o layout (título do site) seja atualizado
       window.location.reload();
     } catch (error) {
       toast({ title: 'Erro', description: 'Não foi possível salvar as configurações.', variant: 'destructive' });
@@ -57,7 +59,7 @@ export default function SettingsForm() {
       <CardHeader>
         <CardTitle>Informações Gerais</CardTitle>
         <CardDescription>
-          Atualize o nome da sua loja e a taxa de entrega padrão.
+          Atualize o nome da sua loja e as taxas de entrega por tipo de pagamento.
         </CardDescription>
       </CardHeader>
       <Form {...form}>
@@ -78,10 +80,23 @@ export default function SettingsForm() {
             />
             <FormField
               control={form.control}
-              name="deliveryFee"
+              name="deliveryFees.stripe"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Taxa de Entrega (R$)</FormLabel>
+                  <FormLabel>Taxa de Entrega (Cartão/Stripe) R$</FormLabel>
+                  <FormControl>
+                    <Input type="number" step="0.01" placeholder="5.00" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="deliveryFees.on_delivery"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Taxa de Entrega (Pagamento na Entrega) R$</FormLabel>
                   <FormControl>
                     <Input type="number" step="0.01" placeholder="5.00" {...field} />
                   </FormControl>

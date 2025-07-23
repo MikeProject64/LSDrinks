@@ -9,7 +9,10 @@ const settingsCollection = 'settings';
 
 const storeSettingsSchema = z.object({
   storeName: z.string().default('LSDrinks'),
-  deliveryFee: z.number().default(5),
+  deliveryFees: z.object({
+    stripe: z.number().default(5),
+    on_delivery: z.number().default(5),
+  }).default({ stripe: 5, on_delivery: 5 }),
 });
 
 export type StoreSettings = z.infer<typeof storeSettingsSchema>;

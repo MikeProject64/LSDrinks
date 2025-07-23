@@ -9,23 +9,34 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 
 interface CartSummaryProps {
   defaultOpen?: boolean;
+  deliveryFee?: number;
+  total?: number;
+  showFeeDetails?: boolean;
 }
 
-export default function CartSummary({ defaultOpen = false }: CartSummaryProps) {
-  const { items, cartTotal, deliveryFee, totalWithFee, clearCart } = useCart();
+export default function CartSummary({
+  defaultOpen = false,
+  deliveryFee,
+  total,
+  showFeeDetails = false,
+}: CartSummaryProps) {
+  const { items, cartTotal, deliveryFee: ctxDeliveryFee, totalWithFee, clearCart } = useCart();
+
+  const fee = deliveryFee !== undefined ? deliveryFee : ctxDeliveryFee;
+  const totalValue = total !== undefined ? total : totalWithFee;
 
   if (items.length === 0) {
     return (
-        <div className="border rounded-lg p-6">
-            <h3 className="text-lg font-medium mb-4">Resumo do Pedido</h3>
-            <p className="text-center text-muted-foreground">Seu carrinho está vazio.</p>
-        </div>
-    )
+      <div className="border rounded-lg p-6">
+        <h3 className="text-lg font-medium mb-4">Resumo do Pedido</h3>
+        <p className="text-center text-muted-foreground">Seu carrinho está vazio.</p>
+      </div>
+    );
   }
 
   return (
     <div className="space-y-4">
-        <Accordion type="single" collapsible className="w-full" defaultValue={defaultOpen ? "item-1" : undefined}>
+      <Accordion type="single" collapsible className="w-full" defaultValue={defaultOpen ? "item-1" : undefined}>
             <AccordionItem value="item-1" className="border-b-0">
                 <div className="flex justify-between items-center">
                     <AccordionTrigger className="flex-1 py-0">
@@ -69,23 +80,33 @@ export default function CartSummary({ defaultOpen = false }: CartSummaryProps) {
       
       <Separator />
 
-      <div className="space-y-2 text-muted-foreground">
-        <div className="flex justify-between">
-            <p>Subtotal</p>
-            <p className="text-foreground font-medium">R$ {cartTotal.toFixed(2)}</p>
+      {showFeeDetails ? (
+        <>
+          <div className="space-y-2 text-muted-foreground">
+            <div className="flex justify-between">
+              <p>Subtotal</p>
+              <p className="text-foreground font-medium">R$ {cartTotal.toFixed(2)}</p>
+            </div>
+            <div className="flex justify-between">
+              <p>Taxa de Entrega</p>
+              <p className="text-foreground font-medium">R$ {fee.toFixed(2)}</p>
+            </div>
+          </div>
+          <Separator />
+          <div className="flex justify-between font-bold text-lg">
+            <p>Total</p>
+            <p>R$ {totalValue.toFixed(2)}</p>
+          </div>
+        </>
+      ) : (
+        <div className="flex justify-between font-bold text-lg">
+          <p>Total</p>
+          <p className="text-right text-base">
+            R$ {cartTotal.toFixed(2)}
+            <span className="text-sm font-normal text-muted-foreground ml-1">+ Taxa de entrega</span>
+          </p>
         </div>
-        <div className="flex justify-between">
-            <p>Taxa de Entrega</p>
-            <p className="text-foreground font-medium">R$ {deliveryFee.toFixed(2)}</p>
-        </div>
-      </div>
-
-      <Separator />
-
-      <div className="flex justify-between font-bold text-lg">
-        <p>Total</p>
-        <p>R$ {totalWithFee.toFixed(2)}</p>
-      </div>
+      )}
     </div>
   );
 }

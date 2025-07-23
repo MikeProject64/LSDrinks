@@ -13,7 +13,9 @@ interface CartContextType {
   cartCount: number;
   cartTotal: number;
   deliveryFee: number;
+  deliveryFees: { stripe: number, on_delivery: number };
   totalWithFee: number;
+  getTotalWithFee: (paymentMethod: 'stripe' | 'on_delivery') => number;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -21,6 +23,7 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [items, setItems] = useState<CartItem[]>([]);
   const [deliveryFee, setDeliveryFee] = useState(5); // Default value
+  const [deliveryFees, setDeliveryFees] = useState<{ stripe: number, on_delivery: number }>({ stripe: 5, on_delivery: 5 });
 
   useEffect(() => {
     // Carrega o carrinho do localStorage quando o componente é montado no cliente
@@ -35,7 +38,12 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     // Carrega a taxa de entrega das configurações
     getSettings().then(settings => {
-      setDeliveryFee(settings.deliveryFee);
+      if (settings.deliveryFees) {
+        setDeliveryFees(settings.deliveryFees);
+        setDeliveryFee(settings.deliveryFees.stripe); // Por padrão, usa stripe
+      } else if ('deliveryFee' in settings) {
+        setDeliveryFee(Number(settings.deliveryFee));
+      }
     });
 
   }, []);
@@ -85,6 +93,12 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const cartTotal = useMemo(() => items.reduce((sum, item) => sum + item.price * item.quantity, 0), [items]);
   const totalWithFee = useMemo(() => cartTotal + deliveryFee, [cartTotal, deliveryFee]);
 
+  // Função para calcular o total com a taxa de acordo com o método de pagamento
+  const getTotalWithFee = useCallback((paymentMethod: 'stripe' | 'on_delivery') => {
+    const fee = deliveryFees[paymentMethod] ?? deliveryFee;
+    return cartTotal + fee;
+  }, [cartTotal, deliveryFees, deliveryFee]);
+
   const value = useMemo(() => ({
     items,
     addToCart,
@@ -94,8 +108,10 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     cartCount,
     cartTotal,
     deliveryFee,
-    totalWithFee
-  }), [items, addToCart, updateQuantity, removeFromCart, clearCart, cartCount, cartTotal, deliveryFee, totalWithFee]);
+    deliveryFees,
+    totalWithFee,
+    getTotalWithFee
+  }), [items, addToCart, updateQuantity, removeFromCart, clearCart, cartCount, cartTotal, deliveryFee, deliveryFees, totalWithFee, getTotalWithFee]);
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 };

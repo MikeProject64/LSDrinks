@@ -1,6 +1,6 @@
 
 "use client";
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import ProductCard from '@/components/ProductCard';
 import { Carousel, CarouselContent, CarouselItem } from '@/components/ui/carousel';
 import { Button } from '@/components/ui/button';
@@ -10,7 +10,9 @@ import Link from 'next/link';
 import Image from 'next/image';
 import dynamic from 'next/dynamic';
 import { useIntersectionObserver } from '@/hooks/use-intersection-observer';
-import { getItemsPaginated } from '@/actions/item-actions';
+import { getItemsPaginated, searchItems } from '@/actions/item-actions';
+import { Input } from '@/components/ui/input';
+import { Search } from 'lucide-react';
 
 const ProductModal = dynamic(() => import('@/components/ProductModal'), { ssr: false });
 
@@ -51,6 +53,18 @@ export default function HomePageClient({ highlights, categories, initialItems, i
   const [lastVisibleId, setLastVisibleId] = useState<string | null>(initialLastVisibleId);
   const [hasMore, setHasMore] = useState(initialHasMore);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [isLoadingCategory, setIsLoadingCategory] = useState(false);
+
+  // Ref para o elemento de carregamento (gatilho do scroll infinito)
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+  const entry = useIntersectionObserver(loadMoreRef, { threshold: 0.5 });
+
+
+  // Estados para a busca
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<Item[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [isSearchActive, setIsSearchActive] = useState(false);
 
   useEffect(() => {
     // Quando os itens iniciais mudam (navegação), reseta o estado.
@@ -58,8 +72,67 @@ export default function HomePageClient({ highlights, categories, initialItems, i
     setLastVisibleId(initialLastVisibleId);
     setHasMore(initialHasMore);
   }, [initialItems, initialLastVisibleId, initialHasMore]);
+
+  // Novo: Buscar itens do banco ao trocar de categoria
+  useEffect(() => {
+    const fetchCategoryItems = async () => {
+      if (activeCategory === 'Todos') return;
+      setIsLoadingCategory(true);
+      try {
+        // Busca todos os itens da categoria (sem paginação inicial)
+        const result = await getItemsPaginated({ pageLimit: 1000, categoryId: activeCategory });
+        setItems(result.items);
+        setLastVisibleId(result.lastVisibleId);
+        setHasMore(result.hasMore);
+      } catch (error) {
+        console.error('Erro ao buscar itens da categoria:', error);
+        setItems([]);
+        setLastVisibleId(null);
+        setHasMore(false);
+      } finally {
+        setIsLoadingCategory(false);
+      }
+    };
+    if (activeCategory !== 'Todos') {
+      fetchCategoryItems();
+    } else {
+      // Volta para os itens iniciais ao selecionar 'Todos'
+      setItems(initialItems);
+      setLastVisibleId(initialLastVisibleId);
+      setHasMore(initialHasMore);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeCategory]);
   
-  const handleLoadMore = async () => {
+  // Novo: Efeito para lidar com a busca
+  useEffect(() => {
+    const handleSearch = async () => {
+      if (searchQuery.trim().length < 2) {
+        setIsSearchActive(false);
+        setSearchResults([]);
+        return;
+      }
+      setIsSearching(true);
+      setIsSearchActive(true);
+      try {
+        const results = await searchItems({ query: searchQuery });
+        setSearchResults(results);
+      } catch (error) {
+        console.error('Erro ao buscar itens:', error);
+      } finally {
+        setIsSearching(false);
+      }
+    };
+
+    // Debounce para evitar buscas a cada tecla digitada
+    const debounceTimer = setTimeout(() => {
+      handleSearch();
+    }, 500);
+
+    return () => clearTimeout(debounceTimer);
+  }, [searchQuery]);
+
+  const handleLoadMore = useCallback(async () => {
     if (!hasMore || isLoadingMore) return;
     
     setIsLoadingMore(true);
@@ -77,7 +150,14 @@ export default function HomePageClient({ highlights, categories, initialItems, i
     } finally {
       setIsLoadingMore(false);
     }
-  };
+  }, [hasMore, isLoadingMore, lastVisibleId]);
+
+  // Efeito para carregar mais itens ao rolar (scroll infinito)
+  useEffect(() => {
+    if (entry?.isIntersecting && !isLoadingMore && !isSearchActive) {
+      handleLoadMore();
+    }
+  }, [entry, isLoadingMore, isSearchActive, handleLoadMore]);
 
   const autoplayPlugin = useRef(Autoplay({ delay: 5000, stopOnInteraction: true, stopOnMouseEnter: true }));
 
@@ -91,11 +171,10 @@ export default function HomePageClient({ highlights, categories, initialItems, i
     setSelectedProduct(null);
   };
 
-  // Filtra os itens com base na categoria ativa.
-  // Esta é a única fonte da verdade para os itens exibidos.
-  const filteredItems = activeCategory === 'Todos' 
-    ? items 
-    : items.filter(item => item.categoryId === activeCategory);
+  // Remover o filtro local:
+  const filteredItems = items;
+
+  const itemsToDisplay = isSearchActive ? searchResults : filteredItems;
 
   const HighlightContent = ({ highlight, index }: { highlight: Highlight, index: number }) => (
     <div className="relative w-full h-48 md:h-64 overflow-hidden shadow-md">
@@ -158,56 +237,78 @@ export default function HomePageClient({ highlights, categories, initialItems, i
         </div>
       )}
 
-      {/* Categories */}
-      <nav className="flex justify-center mb-6">
-        <ul className="flex gap-2 bg-transparent overflow-x-auto scrollbar-hide whitespace-nowrap max-w-full px-1">
-          {allCategories.map((cat) => (
-            <li key={cat.id}>
-              <button
-                className={`px-4 py-2 rounded-full text-sm font-medium transition-colors min-w-[90px] border border-border shadow-sm
-                  ${activeCategory === cat.id ? 'bg-accent text-accent-foreground' : 'bg-card text-muted-foreground hover:bg-accent/20'}
-                `}
-                onClick={() => setActiveCategory(cat.id)}
-              >
-                {cat.name}
-              </button>
-            </li>
-          ))}
-        </ul>
-      </nav>
-
-      {/* Products */}
-      <div className="flex flex-col gap-4">
-        {filteredItems.map((item) => (
-           <AnimatedProductCard 
-             key={item.id} 
-             product={item} 
-             onProductClick={() => handleProductClick(item)} 
-           />
-        ))}
+      {/* Barra de Busca */}
+      <div className="mb-8 relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+        <Input
+          type="search"
+          placeholder="Buscar por nome do produto..."
+          className="w-full pl-10 h-12 text-base"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
       </div>
 
-       {/* Load More Button */}
-       {activeCategory === 'Todos' && hasMore && (
-        <div className="flex justify-center mt-8">
-          <Button onClick={handleLoadMore} disabled={isLoadingMore}>
-            {isLoadingMore ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Carregando...
-              </>
-            ) : (
-              'Ver Mais'
-            )}
-          </Button>
+
+      {/* Categorias */}
+      {!isSearchActive && (
+        <div className="mb-8 overflow-x-auto pb-2 -mx-4 px-4">
+          <div className="flex justify-center mb-6">
+            <ul className="flex gap-2 bg-transparent overflow-x-auto scrollbar-hide whitespace-nowrap max-w-full px-1">
+              {allCategories.map((category) => (
+                <li key={category.id}>
+                  <Button
+                    variant={activeCategory === category.id ? "default" : "outline"}
+                    onClick={() => setActiveCategory(category.id)}
+                    className="rounded-full px-4 py-2 text-sm"
+                  >
+                    {category.name}
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       )}
 
-      <ProductModal 
-        product={selectedProduct as any}
-        isOpen={isModalOpen}
-        onClose={handleCloseModal}
-      />
+      {/* Grid de Produtos */}
+      <div className="space-y-4">
+        {isSearching ? (
+          <div className="flex justify-center items-center py-8">
+            <Loader2 className="animate-spin w-8 h-8 text-orange-500" />
+          </div>
+        ) : (
+          itemsToDisplay.length > 0 ? (
+            itemsToDisplay.map((item) => (
+              <AnimatedProductCard 
+                key={item.id} 
+                product={item} 
+                onProductClick={() => handleProductClick(item)} 
+              />
+            ))
+          ) : (
+            <p className="text-center text-muted-foreground py-8">
+              {isSearchActive ? 'Nenhum resultado encontrado para sua busca.' : 'Não há itens nesta categoria.'}
+            </p>
+          )
+        )}
+      </div>
+
+      {/* Loader para Infinite Scroll - substitui o botão */}
+      {!isSearchActive && hasMore && (
+        <div ref={loadMoreRef} className="flex justify-center mt-8">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      )}
+
+      {/* Modal de Produto */}
+      {isModalOpen && selectedProduct && (
+        <ProductModal 
+          product={selectedProduct as any}
+          isOpen={isModalOpen}
+          onClose={handleCloseModal}
+        />
+      )}
     </section>
   );
 }

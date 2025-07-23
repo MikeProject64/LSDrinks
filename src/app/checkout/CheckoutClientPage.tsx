@@ -37,6 +37,12 @@ const deliveryFormSchema = z.object({
 });
 type DeliveryFormValues = z.infer<typeof deliveryFormSchema>;
 
+function generateUniqueOrderId() {
+  const letter = String.fromCharCode(65 + Math.floor(Math.random() * 26));
+  const numbers = Math.floor(1000 + Math.random() * 9000);
+  return `${letter}${numbers}`;
+}
+
 const saveOrderIdLocally = (orderId: string) => {
     try {
       const existingOrderIds = JSON.parse(localStorage.getItem('myOrderIds') || '[]');
@@ -172,8 +178,12 @@ const generatePixPayload = (pixKey: string, storeName: string, totalAmount: numb
 
 
 export default function CheckoutClientPage({}: CheckoutClientPageProps) {
-  const { items, totalWithFee, clearCart } = useCart();
+  const { items, cartTotal, deliveryFees, clearCart } = useCart();
   const router = useRouter();
+
+  // Correção: Mover a declaração da função para o início do componente
+  const getDeliveryFee = (paymentMethod: 'stripe' | 'on_delivery') => deliveryFees[paymentMethod] ?? 0;
+
   const [step, setStep] = useState<Step>('summary');
   const [deliveryInfo, setDeliveryInfo] = useState<DeliveryFormValues | null>(null);
   const [selectedPayment, setSelectedPayment] = useState<PaymentMethod>(null);
@@ -187,6 +197,7 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
   const [stripeAppearance, setStripeAppearance] = useState<Appearance | undefined>(undefined);
 
   // State for on-delivery payment
+  const [onDeliveryOrderId, setOnDeliveryOrderId] = useState<string | null>(null);
   const [onDeliveryMethod, setOnDeliveryMethod] = useState<OnDeliverySubMethod>('pix');
   const [cashAmount, setCashAmount] = useState('');
   const [change, setChange] = useState<number | null>(null);
@@ -259,18 +270,27 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
     }
   }, []);
 
+  // Gerar ID do pedido para pagamento na entrega uma única vez
+  useEffect(() => {
+    if (selectedPayment === 'on_delivery' && !onDeliveryOrderId) {
+        setOnDeliveryOrderId(generateUniqueOrderId());
+    }
+  }, [selectedPayment, onDeliveryOrderId]);
+
   // Effect for PIX Payload
   useEffect(() => {
     async function generatePayload() {
-        if (selectedPayment === 'on_delivery' && paymentSettings?.pixKey && totalWithFee > 0) {
-            const storeSettings = await getSettings();
-            const orderId = `pedido_${Date.now()}`;
-            const payload = generatePixPayload(paymentSettings.pixKey, storeSettings.storeName, totalWithFee, orderId);
-            setPixPayload(payload);
+        if (selectedPayment === 'on_delivery' && onDeliveryOrderId && paymentSettings?.pixKey) {
+            const total = cartTotal + getDeliveryFee('on_delivery');
+            if (total > 0) {
+                const storeSettings = await getSettings();
+                const payload = generatePixPayload(paymentSettings.pixKey, storeSettings.storeName, total, onDeliveryOrderId);
+                setPixPayload(payload);
+            }
         }
     }
     generatePayload();
-  }, [selectedPayment, paymentSettings?.pixKey, totalWithFee]);
+  }, [selectedPayment, onDeliveryOrderId, paymentSettings, cartTotal, getDeliveryFee]);
 
   useEffect(() => {
     if (pixPayload && canvasRef.current && onDeliveryMethod === 'pix') {
@@ -282,12 +302,12 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
 
   useEffect(() => {
     const numericCashAmount = parseFloat(cashAmount);
-    if (!isNaN(numericCashAmount) && numericCashAmount >= totalWithFee) {
-      setChange(numericCashAmount - totalWithFee);
+    if (!isNaN(numericCashAmount) && numericCashAmount >= getDeliveryFee('on_delivery')) {
+      setChange(numericCashAmount - getDeliveryFee('on_delivery'));
     } else {
       setChange(null);
     }
-  }, [cashAmount, totalWithFee]);
+  }, [cashAmount, getDeliveryFee]);
 
 
   const onDeliverySubmit = (data: DeliveryFormValues) => {
@@ -297,12 +317,12 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
   }
 
   const handleFinalizeOnDeliveryOrder = async () => {
-    if (!deliveryInfo) return;
+    if (!deliveryInfo || !onDeliveryOrderId) return;
 
     if (onDeliveryMethod === 'money') {
         const numericCashAmount = parseFloat(cashAmount);
-        if (isNaN(numericCashAmount) || numericCashAmount < totalWithFee) {
-          toast({ variant: 'destructive', title: 'Valor inválido', description: `O valor em dinheiro deve ser igual ou maior que R$ ${totalWithFee.toFixed(2)}.` });
+        if (isNaN(numericCashAmount) || numericCashAmount < getDeliveryFee('on_delivery')) {
+          toast({ variant: 'destructive', title: 'Valor inválido', description: `O valor em dinheiro deve ser igual ou maior que R$ ${getDeliveryFee('on_delivery').toFixed(2)}.` });
           return;
         }
     }
@@ -310,23 +330,16 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
     setStep('finalizing');
 
     try {
-      function generateOrderId() {
-        const letter = String.fromCharCode(65 + Math.floor(Math.random() * 26));
-        const numbers = Math.floor(1000 + Math.random() * 9000);
-        return `${letter}${numbers}`;
-      }
-      const orderId = generateOrderId();
-      
       const paymentDetails = onDeliveryMethod === 'money'
         ? `Dinheiro (Troco para R$ ${parseFloat(cashAmount).toFixed(2)})`
         : 'PIX';
 
       const result = await saveOrder({
         items,
-        totalAmount: totalWithFee,
+        totalAmount: cartTotal + getDeliveryFee('on_delivery'),
         paymentMethod: 'on_delivery',
         paymentDetails,
-        orderId,
+        orderId: onDeliveryOrderId,
         ...deliveryInfo
       });
 
@@ -400,7 +413,7 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
         case 'summary':
             return (
                 <div className="space-y-8">
-                  <CartSummary defaultOpen={true} />
+                  <CartSummary defaultOpen={true} showFeeDetails={false} />
                   <Button onClick={() => setStep('delivery')} className="w-full" size="lg">
                       Próximo: Entrega
                   </Button>
@@ -434,16 +447,18 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
 
             // --- Stripe Payment View ---
             if (selectedPayment === 'stripe') {
+                const fee = getDeliveryFee('stripe');
+                const total = cartTotal + fee;
                 return (
                     <div className="space-y-8">
-                        <CartSummary />
+                        <CartSummary showFeeDetails={true} deliveryFee={fee} total={total} />
                         <div className="border-t border-dashed pt-6">
                             {clientSecret && stripePromise && stripeOrderId && stripeAppearance ? (
                                 <Elements stripe={stripePromise} options={{ clientSecret, appearance: stripeAppearance }}>
                                     <StripeForm
                                         deliveryInfo={deliveryInfo}
                                         onSuccess={handleStripeSuccess}
-                                        totalAmount={stripeTotal}
+                                        totalAmount={total}
                                         orderId={stripeOrderId}
                                     />
                                 </Elements>
@@ -458,9 +473,11 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
             
             // --- On Delivery Payment View ---
             if (selectedPayment === 'on_delivery') {
+                const fee = getDeliveryFee('on_delivery');
+                const total = cartTotal + fee;
                 return (
                     <div className="space-y-8">
-                        <CartSummary />
+                        <CartSummary showFeeDetails={true} deliveryFee={fee} total={total} />
                         <div className="border-t border-dashed pt-6 space-y-6">
                             <Tabs value={onDeliveryMethod} onValueChange={(v) => setOnDeliveryMethod(v as OnDeliverySubMethod)} className="w-full">
                                 <TabsList className="grid w-full grid-cols-2">
@@ -484,7 +501,7 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
                                         <p className="text-sm text-center text-muted-foreground">Informe o valor que você dará em dinheiro para que possamos separar seu troco.</p>
                                         <div className="space-y-1">
                                             <Label htmlFor="cash">Valor em dinheiro (R$)</Label>
-                                            <Input id="cash" type="number" placeholder={totalWithFee.toFixed(2)} value={cashAmount} onChange={(e) => setCashAmount(e.target.value)} />
+                                            <Input id="cash" type="number" placeholder={getDeliveryFee('on_delivery').toFixed(2)} value={cashAmount} onChange={(e) => setCashAmount(e.target.value)} />
                                         </div>
                                         {change !== null && (
                                             <div className="text-center bg-muted p-3 rounded-md">
@@ -520,10 +537,13 @@ export default function CheckoutClientPage({}: CheckoutClientPageProps) {
                             </button>
                         )}
                         {paymentSettings?.isPaymentOnDeliveryEnabled && (
-                             <button className="w-full p-4 border rounded-lg text-left hover:bg-muted/50 transition-colors" onClick={() => setSelectedPayment('on_delivery')}>
+                            <button className="w-full p-4 border rounded-lg text-left hover:bg-muted/50 transition-colors" onClick={() => setSelectedPayment('on_delivery')}>
                                 <div className="flex items-center gap-4">
+                                    {/* Ícone de dinheiro */}
                                     <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-10 h-10 text-primary shrink-0">
-                                        <path d="M4 14.857c.714 2.286 2.286 3.429 4.286 4.286S12.857 20 14.857 20s4-1.143 4.286-2.857c.286-1.714-.857-3.143-2.286-4s-3.429-1.429-3.429-3.429c0-1.714 1.143-2.857 2.571-3.429S20 4.857 20 4M6 10.286C5.429 8 6.571 6 8.571 5.143S12.857 4 14.857 4M10 20V4" />
+                                        <rect x="2" y="7" width="20" height="10" rx="2"/>
+                                        <circle cx="12" cy="12" r="3"/>
+                                        <path d="M6 7v10M18 7v10"/>
                                     </svg>
                                     <div>
                                         <span className="font-semibold text-lg">Pagar na Entrega</span>
