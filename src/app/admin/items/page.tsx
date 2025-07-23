@@ -1,28 +1,24 @@
 
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState, useTransition, useRef, useCallback } from "react";
 import Image from "next/image";
-import { getItemsPaginated, deleteItem } from "@/actions/item-actions";
+import { getAdminItems, deleteItem } from "@/actions/item-actions";
+import { getCategories } from "@/actions/category-actions";
 import AdminLayout from "@/components/AdminLayout";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  CardFooter
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { PlusCircle, MoreHorizontal } from "lucide-react";
+import { PlusCircle, MoreHorizontal, Loader2, Search } from "lucide-react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useRouter } from "next/navigation";
-
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useIntersectionObserver } from "@/hooks/use-intersection-observer";
 
 interface Item {
   id: string;
@@ -33,52 +29,43 @@ interface Item {
   categoryName: string;
 }
 
-const ITEMS_PER_PAGE = 10;
+interface Category {
+  id: string;
+  name: string;
+}
 
 export default function ItemsListPage() {
   const { toast } = useToast();
   const router = useRouter();
   const [items, setItems] = useState<Item[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [selectedItem, setSelectedItem] = useState<Item | null>(null);
-  const [isPending, startTransition] = useTransition();
+  const [isDeleting, startDeleteTransition] = useTransition();
+
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<string>("");
 
   const [lastVisibleId, setLastVisibleId] = useState<string | null>(null);
-  const [hasMore, setHasMore] = useState(false);
-  const [page, setPage] = useState(1);
-  const [pageHistory, setPageHistory] = useState<(string | null)[]>([null]);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+  const observerEntry = useIntersectionObserver(loadMoreRef, { threshold: 1.0 });
 
-  const fetchItems = async (direction: 'next' | 'prev' | 'current' = 'current') => {
-    setIsLoading(true);
+  const fetchItems = useCallback(async (reset = false) => {
+    if (isLoadingMore) return;
+    setIsLoadingMore(true);
+    if(reset) setIsLoading(true);
+
     try {
-        let lastId = lastVisibleId;
-        if (direction === 'next') {
-            // we already have the lastVisibleId for the next page
-        } else if (direction === 'prev') {
-            // The last item of the *previous* page is what we need for `startAfter`
-            lastId = page > 2 ? pageHistory[page - 2] : null;
-        }
-
-      const result = await getItemsPaginated({ pageLimit: ITEMS_PER_PAGE, lastVisibleId: lastId });
-      
-      setItems(result.items as Item[]);
+      const result = await getAdminItems({
+        lastVisibleId: reset ? null : lastVisibleId,
+        searchQuery: searchQuery || null,
+        categoryId: selectedCategory || null,
+      });
+      setItems(prev => reset ? result.items as Item[] : [...prev, ...result.items as Item[]]);
+      setLastVisibleId(result.lastVisibleId);
       setHasMore(result.hasMore);
-
-      if (direction === 'next') {
-        setLastVisibleId(result.lastVisibleId);
-        // Only add to history if we are moving to a new page not already in history
-        if (page + 1 > pageHistory.length) {
-            setPageHistory([...pageHistory, result.lastVisibleId]);
-        }
-        setPage(p => p + 1);
-      } else if (direction === 'prev') {
-        setPage(p => Math.max(1, p - 1));
-        // The last visible id for the new current page is the one we just fetched to get here
-        setLastVisibleId(lastId);
-      }
-
     } catch (error) {
       toast({
         variant: "destructive",
@@ -87,21 +74,35 @@ export default function ItemsListPage() {
       });
     } finally {
       setIsLoading(false);
+      setIsLoadingMore(false);
     }
-  };
+  }, [lastVisibleId, searchQuery, selectedCategory, toast, isLoadingMore]);
 
   useEffect(() => {
-    fetchItems('current');
+    if (observerEntry?.isIntersecting && hasMore && !isLoadingMore) {
+      fetchItems();
+    }
+  }, [observerEntry, hasMore, isLoadingMore, fetchItems]);
+  
+  useEffect(() => {
+    fetchItems(true);
+  }, [searchQuery, selectedCategory]);
+
+  useEffect(() => {
+    getCategories().then(setCategories);
   }, []);
+
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<Item | null>(null);
 
   const handleDeleteConfirm = () => {
     if (!selectedItem) return;
 
-    startTransition(async () => {
+    startDeleteTransition(async () => {
       try {
         await deleteItem(selectedItem.id);
         toast({ title: "Sucesso!", description: "Item excluído com sucesso." });
-        fetchItems('current'); // Refresh list
+        setItems(prevItems => prevItems.filter(item => item.id !== selectedItem.id));
       } catch (error) {
         toast({ variant: "destructive", title: "Erro!", description: "Não foi possível excluir o item." });
       } finally {
@@ -113,35 +114,59 @@ export default function ItemsListPage() {
 
   return (
     <AdminLayout>
-        <div className="flex items-center">
-            <h1 className="text-lg font-semibold md:text-2xl">Itens do Cardápio</h1>
-            <div className="ml-auto flex items-center gap-2">
-                <Button asChild size="sm" className="h-8 gap-1">
-                    <Link href="/admin/items/new">
-                        <PlusCircle className="h-3.5 w-3.5" />
-                        <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-                            Cadastrar Item
-                        </span>
-                    </Link>
-                </Button>
-            </div>
+      <div className="flex items-center">
+        <h1 className="text-lg font-semibold md:text-2xl">Itens do Cardápio</h1>
+        <div className="ml-auto flex items-center gap-2">
+          <Button asChild size="sm" className="h-8 gap-1">
+            <Link href="/admin/items/new">
+              <PlusCircle className="h-3.5 w-3.5" />
+              <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">Cadastrar Item</span>
+            </Link>
+          </Button>
         </div>
+      </div>
       <Card>
-          <CardHeader>
-              <CardTitle>Itens Cadastrados</CardTitle>
-              <CardDescription>Lista de todos os itens existentes no cardápio.</CardDescription>
-          </CardHeader>
-          <CardContent>
-             {isLoading ? (
-               <p>Carregando itens...</p>
-             ) : (
+        <CardHeader>
+          <CardTitle>Itens Cadastrados</CardTitle>
+          <CardDescription>Gerencie, filtre e pesquise os itens do seu cardápio.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col sm:flex-row gap-4 mb-6">
+            <div className="relative flex-1">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="search"
+                placeholder="Pesquisar por título..."
+                className="pl-8 sm:w-full"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+            <Select onValueChange={setSelectedCategory} value={selectedCategory}>
+              <SelectTrigger className="sm:w-[180px]">
+                <SelectValue placeholder="Todas as categorias" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">Todas as categorias</SelectItem>
+                {categories.map(cat => (
+                  <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {isLoading ? (
+            <div className="flex justify-center items-center h-64">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead className="hidden w-[100px] sm:table-cell">Imagem</TableHead>
                     <TableHead>Título</TableHead>
                     <TableHead>Categoria</TableHead>
-                    <TableHead className="hidden md:table-cell">Descrição</TableHead>
                     <TableHead>Preço</TableHead>
                     <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
@@ -161,8 +186,8 @@ export default function ItemsListPage() {
                               sizes="64px"
                             />
                           ) : (
-                            <div className="w-16 h-16 bg-gray-200 rounded-md flex items-center justify-center">
-                              <span className="text-xs text-gray-500">Sem Imagem</span>
+                            <div className="w-16 h-16 bg-muted rounded-md flex items-center justify-center">
+                              <span className="text-xs text-muted-foreground">Sem Imagem</span>
                             </div>
                           )}
                         </TableCell>
@@ -170,10 +195,9 @@ export default function ItemsListPage() {
                         <TableCell>
                           <Badge variant="outline">{item.categoryName}</Badge>
                         </TableCell>
-                        <TableCell className="hidden md:table-cell">{item.description}</TableCell>
                         <TableCell>R$ {item.price.toFixed(2)}</TableCell>
                         <TableCell className="text-right">
-                           <DropdownMenu>
+                          <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button variant="ghost" className="h-8 w-8 p-0">
                                 <span className="sr-only">Abrir menu</span>
@@ -201,26 +225,21 @@ export default function ItemsListPage() {
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center">Nenhum item encontrado.</TableCell>
+                      <TableCell colSpan={5} className="text-center h-24">
+                        Nenhum item encontrado.
+                      </TableCell>
                     </TableRow>
                   )}
                 </TableBody>
               </Table>
-             )}
-          </CardContent>
-          <CardFooter>
-            <div className="text-xs text-muted-foreground">
-                Página <strong>{page}</strong>
             </div>
-            <div className="ml-auto flex items-center gap-2">
-                <Button size="sm" variant="outline" onClick={() => fetchItems('prev')} disabled={page <= 1 || isLoading}>
-                    Anterior
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => fetchItems('next')} disabled={!hasMore || isLoading}>
-                    Próximo
-                </Button>
-            </div>
-        </CardFooter>
+          )}
+
+          <div ref={loadMoreRef} className="h-10 mt-4 flex justify-center items-center">
+            {isLoadingMore && <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />}
+            {!hasMore && items.length > 0 && <p className="text-sm text-muted-foreground">Fim da lista.</p>}
+          </div>
+        </CardContent>
       </Card>
 
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
@@ -234,8 +253,8 @@ export default function ItemsListPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteConfirm} disabled={isPending}>
-              {isPending ? "Excluindo..." : "Excluir"}
+            <AlertDialogAction onClick={handleDeleteConfirm} disabled={isDeleting}>
+              {isDeleting ? "Excluindo..." : "Excluir"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -3,8 +3,7 @@
 
 import { z } from 'zod';
 import { db, storage } from '@/lib/firebase';
-import { collection, addDoc, getDocs, serverTimestamp, query, orderBy, Timestamp, doc, getDoc, updateDoc, deleteDoc, limit, startAfter } from 'firebase/firestore';
-import { getCategories } from './category-actions';
+import { collection, addDoc, getDocs, serverTimestamp, query, orderBy, Timestamp, doc, getDoc, updateDoc, deleteDoc, limit, startAfter, where } from 'firebase/firestore';
 
 const itemSchema = z.object({
   title: z.string().min(3, "O título deve ter pelo menos 3 caracteres."),
@@ -34,6 +33,63 @@ export async function addItem(data: z.infer<typeof itemSchema>) {
     throw new Error('Falha ao adicionar item no banco de dados.');
   }
 }
+
+const getAdminItems = async ({ pageLimit = 15, lastVisibleId, categoryId, searchQuery }: { pageLimit?: number; lastVisibleId?: string | null; categoryId?: string | null, searchQuery?: string | null; }) => {
+    if (!db) {
+      console.warn("Firebase não inicializado, retornando resultado paginado vazio.");
+      return { items: [], lastVisibleId: null, hasMore: false };
+    }
+  
+    try {
+      const categoriesSnapshot = await getDocs(collection(db, "categories"));
+      const categories = new Map(categoriesSnapshot.docs.map(doc => [doc.id, doc.data().name]));
+  
+      let q = query(collection(db, "items"), orderBy("title"));
+  
+      if (categoryId) {
+        q = query(q, where("categoryId", "==", categoryId));
+      }
+      if (searchQuery) {
+        q = query(q, where("title", ">=", searchQuery), where("title", "<=", searchQuery + '\uf8ff'));
+      }
+      
+      q = query(q, limit(pageLimit));
+  
+      if (lastVisibleId) {
+        const lastVisibleDoc = await getDoc(doc(db, "items", lastVisibleId));
+        if (lastVisibleDoc.exists()) {
+          q = query(q, startAfter(lastVisibleDoc));
+        }
+      }
+      
+      const itemsSnapshot = await getDocs(q);
+      
+      const items = itemsSnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          title: data.title || '',
+          description: data.description || '',
+          price: data.price || 0,
+          imageUrl: data.imageUrl || '',
+          categoryId: data.categoryId || '',
+          categoryName: categories.get(data.categoryId) || 'Sem categoria',
+          createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
+        };
+      });
+      
+      const newLastVisibleId = itemsSnapshot.docs.length > 0 ? itemsSnapshot.docs[itemsSnapshot.docs.length - 1].id : null;
+      const hasMore = items.length === pageLimit;
+  
+      return { items, lastVisibleId: newLastVisibleId, hasMore };
+  
+    } catch (e) {
+      console.error("Error fetching admin items: ", e);
+      throw new Error('Falha ao buscar itens para o admin.');
+    }
+  };
+
+export { getAdminItems };
 
 
 export async function getItems() {

@@ -1,10 +1,10 @@
 import type { Metadata } from 'next';
 import './globals.css';
-import { AuthProvider } from '@/context/AuthContext';
 import LayoutManager from '@/components/LayoutManager';
 import { Inter } from 'next/font/google';
 import { getSettings, StoreSettings } from '@/actions/settings-actions';
 import { getActiveHighlights } from '@/actions/highlight-actions';
+import { Providers } from '@/context/Providers';
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -50,11 +50,11 @@ export default async function RootLayout({
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Space+Grotesk:wght@400;700&display=swap" rel="stylesheet" />
       </head>
       <body className={inter.className}>
-        <AuthProvider>
+        <Providers>
           <LayoutManager settings={settings}>
             {children}
           </LayoutManager>
-        </AuthProvider>
+        </Providers>
       </body>
     </html>
   );
