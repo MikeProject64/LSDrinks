@@ -43,7 +43,8 @@ export async function getCategories() {
         return [];
     }
     try {
-      const q = query(collection(db, "categories"), orderBy("createdAt", "desc"));
+      // Removida a ordenação para evitar a necessidade de um índice composto
+      const q = query(collection(db, "categories"));
       const querySnapshot = await getDocs(q);
       const categories: any[] = [];
       querySnapshot.forEach((doc) => {
