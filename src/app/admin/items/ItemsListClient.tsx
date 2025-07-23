@@ -102,7 +102,7 @@ export default function ItemsListClient({ initialItems, initialLastVisibleId, in
     }
   }, [observerEntry?.isIntersecting, hasMore, isLoadingMore, isLoading, fetchItems]);
   
-  // Efeito para buscar novamente ao mudar filtros
+  // Efeito para buscar novamente ao mudar filtros (busca e categoria)
   useEffect(() => {
     if (isInitialLoad.current) {
         isInitialLoad.current = false;
@@ -110,7 +110,7 @@ export default function ItemsListClient({ initialItems, initialLastVisibleId, in
     }
     const timer = setTimeout(() => {
         fetchItems({ reset: true });
-    }, 500); // Debounce
+    }, 500); // Debounce para evitar buscas excessivas ao digitar
     return () => clearTimeout(timer);
   }, [searchQuery, selectedCategory]);
 
