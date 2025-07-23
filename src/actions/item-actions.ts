@@ -53,83 +53,48 @@ const getAdminItems = async ({
   try {
     const categoriesSnapshot = await getDocs(collection(db, "categories"));
     const categories = new Map(categoriesSnapshot.docs.map(doc => [doc.id, doc.data().name]));
-
-    let q = query(
-      collection(db, "items"),
-      orderBy("createdAt", "desc")
-    );
     
-    // Se há uma busca de texto, não podemos usar o cursor do Firestore (`startAfter`)
-    // porque o filtro será feito em memória. Neste caso, buscamos todos os itens
-    // que correspondem à categoria e depois filtramos e paginamos manualmente.
-    if (searchQuery) {
-        if (categoryId) {
-            q = query(collection(db, "items"), where("categoryId", "==", categoryId), orderBy("createdAt", "desc"));
-        }
-
-        const allDocsSnapshot = await getDocs(q);
-        let allItems = allDocsSnapshot.docs.map(doc => {
-            const data = doc.data();
-            return {
-                id: doc.id,
-                title: data.title || '',
-                description: data.description || '',
-                price: data.price || 0,
-                imageUrl: data.imageUrl || '',
-                categoryId: data.categoryId || '',
-                categoryName: categories.get(data.categoryId) || 'Sem categoria',
-                createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
-            };
-        });
-
-        const filteredItems = allItems.filter(item => item.title.toLowerCase().includes(searchQuery.toLowerCase()));
-
-        // Paginação manual
-        const startIndex = lastVisibleId ? filteredItems.findIndex(item => item.id === lastVisibleId) + 1 : 0;
-        const paginatedItems = filteredItems.slice(startIndex, startIndex + pageLimit);
-        
-        const newLastVisibleId = paginatedItems.length > 0 ? paginatedItems[paginatedItems.length - 1].id : null;
-        const hasMore = (startIndex + paginatedItems.length) < filteredItems.length;
-
-        return { items: paginatedItems, lastVisibleId: newLastVisibleId, hasMore };
-
-    } else {
-        // Lógica sem busca por texto (com paginação do Firestore)
-        let constraints = [orderBy("createdAt", "desc")];
-        if (categoryId) {
-            constraints.push(where("categoryId", "==", categoryId));
-        }
-
-        if (lastVisibleId) {
-            const lastVisibleDoc = await getDoc(doc(db, "items", lastVisibleId));
-            if (lastVisibleDoc.exists()) {
-                constraints.push(startAfter(lastVisibleDoc));
-            }
-        }
-        constraints.push(limit(pageLimit));
-        
-        const itemsQuery = query(collection(db, "items"), ...constraints);
-        const itemsSnapshot = await getDocs(itemsQuery);
-        
-        const items = itemsSnapshot.docs.map(doc => {
-            const data = doc.data();
-            return {
-                id: doc.id,
-                title: data.title || '',
-                description: data.description || '',
-                price: data.price || 0,
-                imageUrl: data.imageUrl || '',
-                categoryId: data.categoryId || '',
-                categoryName: categories.get(data.categoryId) || 'Sem categoria',
-                createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
-            };
-        });
-        
-        const newLastVisibleId = itemsSnapshot.docs.length > 0 ? itemsSnapshot.docs[itemsSnapshot.docs.length - 1].id : null;
-        const hasMore = items.length === pageLimit;
-
-        return { items, lastVisibleId: newLastVisibleId, hasMore };
+    // Constrói a query base com a ordenação
+    let q = query(collection(db, "items"), orderBy("createdAt", "desc"));
+    
+    // Se houver um filtro de categoria, aplica-o à query base.
+    if (categoryId) {
+        q = query(q, where("categoryId", "==", categoryId));
     }
+
+    // Busca todos os documentos que correspondem à query (com ou sem filtro de categoria).
+    // A paginação será feita manualmente depois do filtro de texto.
+    const allDocsSnapshot = await getDocs(q);
+
+    // Mapeia todos os itens para um formato serializável
+    let allItems = allDocsSnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+            id: doc.id,
+            title: data.title || '',
+            description: data.description || '',
+            price: data.price || 0,
+            imageUrl: data.imageUrl || '',
+            categoryId: data.categoryId || '',
+            categoryName: categories.get(data.categoryId) || 'Sem categoria',
+            createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
+        };
+    });
+
+    // Se houver uma busca por texto, filtra os resultados em memória.
+    // Isso é aplicado DEPOIS do filtro de categoria (se houver).
+    if (searchQuery) {
+        allItems = allItems.filter(item => item.title.toLowerCase().includes(searchQuery.toLowerCase()));
+    }
+    
+    // Aplica a paginação manual nos resultados finais (já filtrados por categoria e/ou texto)
+    const startIndex = lastVisibleId ? allItems.findIndex(item => item.id === lastVisibleId) + 1 : 0;
+    const paginatedItems = allItems.slice(startIndex, startIndex + pageLimit);
+    
+    const newLastVisibleId = paginatedItems.length > 0 ? paginatedItems[paginatedItems.length - 1].id : null;
+    const hasMore = (startIndex + paginatedItems.length) < allItems.length;
+
+    return { items: paginatedItems, lastVisibleId: newLastVisibleId, hasMore };
 
   } catch (e) {
     console.error("Error fetching admin items: ", e);
