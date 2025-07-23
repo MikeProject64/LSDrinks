@@ -57,12 +57,13 @@ const getAdminItems = async ({
     // Base query
     let q = query(collection(db, "items"), orderBy("createdAt", "desc"));
     
-    // Apply category filter if it exists
+    // Apply category filter directly in the query
     if (categoryId) {
       q = query(q, where("categoryId", "==", categoryId));
     }
     
-    // If there is no search query, we can paginate directly in Firestore
+    // If there is no search query, we can paginate with Firestore's cursors.
+    // Otherwise, we fetch all (or up to a reasonable limit) and filter/paginate in-memory.
     if (!searchQuery) {
       if (lastVisibleId) {
         const lastVisibleDoc = await getDoc(doc(db, "items", lastVisibleId));
@@ -72,7 +73,7 @@ const getAdminItems = async ({
       }
       q = query(q, limit(pageLimit));
     }
-    
+
     const itemsSnapshot = await getDocs(q);
 
     let allItems = itemsSnapshot.docs.map(doc => {
@@ -89,31 +90,32 @@ const getAdminItems = async ({
       };
     });
 
-    // If there's a search query, filter the results in-memory
+    // If there's a search query, filter the already-fetched results in-memory.
     if (searchQuery) {
       allItems = allItems.filter(item => 
         item.title.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
     
-    // Handle pagination for server-filtered results (search query)
-    let items;
+    // Handle pagination for all cases
+    let paginatedItems;
     let newLastVisibleId = null;
     let hasMore = false;
 
+    // If we're filtering by search, we must paginate the in-memory array.
     if (searchQuery) {
-      const startIndex = lastVisibleId ? allItems.findIndex(item => item.id === lastVisibleId) + 1 : 0;
-      items = allItems.slice(startIndex, startIndex + pageLimit);
-      hasMore = (startIndex + pageLimit) < allItems.length;
-      newLastVisibleId = items.length > 0 ? items[items.length - 1].id : null;
-    } else {
-      // Standard Firestore pagination
-      items = allItems;
-      newLastVisibleId = itemsSnapshot.docs.length > 0 ? itemsSnapshot.docs[itemsSnapshot.docs.length - 1].id : null;
-      hasMore = items.length === pageLimit;
+        const startIndex = lastVisibleId ? allItems.findIndex(item => item.id === lastVisibleId) + 1 : 0;
+        paginatedItems = allItems.slice(startIndex, startIndex + pageLimit);
+        hasMore = (startIndex + pageLimit) < allItems.length;
+        newLastVisibleId = paginatedItems.length > 0 ? paginatedItems[paginatedItems.length - 1].id : null;
+    } else { 
+        // Standard Firestore-based pagination
+        paginatedItems = allItems;
+        newLastVisibleId = itemsSnapshot.docs.length > 0 ? itemsSnapshot.docs[itemsSnapshot.docs.length - 1].id : null;
+        hasMore = itemsSnapshot.docs.length === pageLimit;
     }
 
-    return { items, lastVisibleId: newLastVisibleId, hasMore };
+    return { items: paginatedItems, lastVisibleId: newLastVisibleId, hasMore };
 
   } catch (e) {
     console.error("Error fetching admin items: ", e);
