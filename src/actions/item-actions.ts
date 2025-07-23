@@ -54,28 +54,29 @@ const getAdminItems = async ({
     const categoriesSnapshot = await getDocs(collection(db, "categories"));
     const categories = new Map(categoriesSnapshot.docs.map(doc => [doc.id, doc.data().name]));
 
-    // Base query
-    let q = query(collection(db, "items"), orderBy("createdAt", "desc"));
-    
-    // Se há uma categoria, aplicamos o filtro na query.
+    let constraints = [orderBy("createdAt", "desc")];
     if (categoryId) {
-      q = query(q, where("categoryId", "==", categoryId));
-    }
-
-    // Se não há busca por texto, podemos paginar diretamente no Firestore.
-    // O 'limit' é aplicado aqui para otimizar a leitura inicial.
-    if (!searchQuery) {
-        if (lastVisibleId) {
-            const lastVisibleDoc = await getDoc(doc(db, "items", lastVisibleId));
-            if (lastVisibleDoc.exists()) {
-                q = query(q, startAfter(lastVisibleDoc));
-            }
-        }
-        q = query(q, limit(pageLimit));
+        constraints.push(where("categoryId", "==", categoryId));
     }
     
-    const itemsSnapshot = await getDocs(q);
-
+    // A paginação com cursor só pode ser usada se a busca por texto não estiver ativa,
+    // pois a busca por texto força uma filtragem em memória.
+    if (lastVisibleId && !searchQuery) {
+        const lastVisibleDoc = await getDoc(doc(db, "items", lastVisibleId));
+        if (lastVisibleDoc.exists()) {
+            constraints.push(startAfter(lastVisibleDoc));
+        }
+    }
+    
+    // Aplicamos o limite APENAS se não houver busca por texto.
+    // Se houver busca, precisamos de todos os documentos (filtrados por categoria) para pesquisar neles.
+    if (!searchQuery) {
+        constraints.push(limit(pageLimit));
+    }
+    
+    const itemsQuery = query(collection(db, "items"), ...constraints);
+    const itemsSnapshot = await getDocs(itemsQuery);
+    
     let allItems = itemsSnapshot.docs.map(doc => {
       const data = doc.data();
       return {
@@ -89,29 +90,28 @@ const getAdminItems = async ({
         createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
       };
     });
-
-    // Se houver uma busca por texto, filtramos os resultados em memória.
-    // Isso é feito *depois* de filtrar por categoria (se aplicável)
+    
+    // Filtro de busca por texto (em memória)
     if (searchQuery) {
       allItems = allItems.filter(item => 
         item.title.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
     
-    // A paginação manual só é necessária se houver busca por texto,
-    // pois a query do Firestore já foi limitada nos outros casos.
-    const paginatedItems = searchQuery 
-        ? allItems.slice(0, pageLimit)
-        : allItems;
+    // Paginação manual para o caso de busca por texto.
+    const paginatedItems = searchQuery ? allItems.slice(0, pageLimit) : allItems;
 
-    const newLastVisibleId = paginatedItems.length > 0 
-        ? paginatedItems[paginatedItems.length - 1].id 
-        : null;
-        
-    const hasMore = searchQuery 
-        ? paginatedItems.length < allItems.length // Se a fatia é menor que o total, há mais.
-        : itemsSnapshot.docs.length === pageLimit; // Se a query retornou o limite, pode haver mais.
-
+    const newLastVisibleId = paginatedItems.length > 0 ? paginatedItems[paginatedItems.length - 1].id : null;
+    
+    // A lógica 'hasMore' precisa considerar se a busca está ativa.
+    let hasMore;
+    if(searchQuery) {
+        // Se a busca estiver ativa, há mais se o número total de itens filtrados for maior que o limite da página.
+        hasMore = allItems.length > pageLimit;
+    } else {
+        // Se não, há mais se o snapshot original do Firestore retornou o número máximo de itens.
+        hasMore = itemsSnapshot.docs.length === pageLimit;
+    }
 
     return { items: paginatedItems, lastVisibleId: newLastVisibleId, hasMore };
 
@@ -255,3 +255,5 @@ export async function deleteItem(id: string) {
         throw new Error('Falha ao excluir o item.');
     }
 }
+
+    
