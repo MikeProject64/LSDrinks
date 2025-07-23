@@ -54,19 +54,14 @@ const getAdminItems = async ({
     const categoriesSnapshot = await getDocs(collection(db, "categories"));
     const categories = new Map(categoriesSnapshot.docs.map(doc => [doc.id, doc.data().name]));
     
-    // Constrói a query base com a ordenação
-    let q = query(collection(db, "items"), orderBy("createdAt", "desc"));
-    
-    // Se houver um filtro de categoria, aplica-o à query base.
+    let queryConstraints = [orderBy("createdAt", "desc")];
     if (categoryId) {
-        q = query(q, where("categoryId", "==", categoryId));
+        queryConstraints.push(where("categoryId", "==", categoryId));
     }
+    const baseQuery = query(collection(db, "items"), ...queryConstraints);
+    
+    const allDocsSnapshot = await getDocs(baseQuery);
 
-    // Busca todos os documentos que correspondem à query (com ou sem filtro de categoria).
-    // A paginação será feita manualmente depois do filtro de texto.
-    const allDocsSnapshot = await getDocs(q);
-
-    // Mapeia todos os itens para um formato serializável
     let allItems = allDocsSnapshot.docs.map(doc => {
         const data = doc.data();
         return {
@@ -81,13 +76,10 @@ const getAdminItems = async ({
         };
     });
 
-    // Se houver uma busca por texto, filtra os resultados em memória.
-    // Isso é aplicado DEPOIS do filtro de categoria (se houver).
     if (searchQuery) {
         allItems = allItems.filter(item => item.title.toLowerCase().includes(searchQuery.toLowerCase()));
     }
     
-    // Aplica a paginação manual nos resultados finais (já filtrados por categoria e/ou texto)
     const startIndex = lastVisibleId ? allItems.findIndex(item => item.id === lastVisibleId) + 1 : 0;
     const paginatedItems = allItems.slice(startIndex, startIndex + pageLimit);
     
